@@ -8,6 +8,12 @@ import { auth } from './firebase/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import Report from './pages/Report';
 import DailyReport from './pages/DailyReport';
+import Feepayment from './pages/Feepayment';
+import FeePaymentPendingPayment from './pages/feepyament_pendingpayment';
+import CCTV from './pages/CCTV';
+import Profile from './pages/Profile.jsx'
+import Leaveform from './pages/Leaveform';
+import Reports from "./pages/Reports";
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,6 +39,14 @@ function App() {
         <Route path="/report" element={user ? <Report /> : <Navigate to="/login" />} />
         <Route path="/daily-report" element={user ? <DailyReport /> : <Navigate to="/login" />} />
         <Route path="/child-report" element={user ? <Childreport /> : <Navigate to="/login" />} />
+        <Route path="/feepayment" element={user ? <Feepayment /> : <Navigate to="/login" />} />
+        <Route path="/feepayment/pending" element={<FeePaymentPendingPayment />} />
+        <Route path="/cctv" element={user ? <CCTV /> : <Navigate to="/login" />} />
+        <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
+        <Route path="/login" element={<Login1 />} />
+         <Route path="/leaveform" element={<Leaveform />} />
+          <Route path="/dashboard" element={<ParentDashboard />} />
+        <Route path="/reports" element={<Reports />} />
       </Routes>
       <div id="recaptcha-container"></div>
     </Router>
