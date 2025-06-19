@@ -27,9 +27,6 @@ package-lock.json.*
 yarn.lock.*
 *.tgz
 
-# Firebase config
-src/firebase/firebase.js
-
 # Editor directories and files
 .idea/
 .vscode/
