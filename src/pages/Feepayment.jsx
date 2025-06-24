@@ -1,190 +1,36 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Loader } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
 
-// --- Style definitions ---
-const containerStyle = { 
-  maxWidth: 400, 
-  margin: "0 auto", 
-  background: "#f8f8f8", 
-  minHeight: "100vh", 
-  fontFamily: "sans-serif", 
-  paddingBottom: 80 
-};
-
-const headerRowStyle = { 
-  display: 'flex', 
-  alignItems: 'center', 
-  justifyContent: 'space-between', 
-  padding: '18px 16px 0 16px', 
-  background: 'transparent' 
-};
-
-const headerTitleStyle = { 
-  fontWeight: 600, 
-  fontSize: 20, 
-  color: "#444", 
-  flex: 1, 
-  textAlign: 'center' 
-};
-
-const headerBtnStyle = { 
-  background: 'none', 
-  border: 'none', 
-  padding: 0, 
-  margin: 0, 
-  cursor: 'pointer', 
-  fontSize: 22, 
-  display: 'flex', 
-  alignItems: 'center', 
-  color: '#444', 
-  minWidth: 32 
-};
-
-const headerIconStyle = { 
-  width: 24, 
-  height: 24, 
-  cursor: "pointer", 
-  color: "#666", 
-  fontSize: 20, 
-  display: "flex", 
-  alignItems: "center", 
-  justifyContent: "center" 
-};
-
-const searchRowStyle = { 
-  display: "flex", 
-  alignItems: "center", 
-  gap: 12, 
-  padding: "0 16px", 
-  marginBottom: 16 
-};
-
-const searchInputStyle = { 
-  flex: 1, 
-  padding: "10px 14px", 
-  border: "1px solid #ddd", 
-  borderRadius: 8, 
-  fontSize: 15, 
-  background: "#fff" 
-};
-
-const filterBtnStyle = { 
-  width: 36, 
-  height: 36, 
-  borderRadius: 8, 
-  border: "none", 
-  background: "#eee", 
-  display: "flex", 
-  alignItems: "center", 
-  justifyContent: "center", 
-  fontSize: 19, 
-  cursor: "pointer" 
-};
-
-const pendingBoxStyle = { 
-  background: "#dedede", 
-  borderRadius: 12, 
-  margin: "0 16px 16px 16px", 
-  padding: "14px 16px", 
-  display: "flex", 
-  alignItems: "center", 
-  justifyContent: "space-between" 
-};
-
-const pendingInfoStyle = { 
-  color: "#444", 
-  fontSize: 15 
-};
-
-const pendingCountStyle = { 
-  fontWeight: 600, 
-  color: "#222" 
-};
-
-const invoiceCardStyle = { 
-  background: "#fff", 
-  borderRadius: 14, 
-  margin: "0 16px 18px 16px", 
-  boxShadow: "0 1px 4px #0001", 
-  padding: "18px 16px" 
-};
-
-const rowBetweenStyle = { 
-  display: "flex", 
-  alignItems: "center", 
-  justifyContent: "space-between" 
-};
-
-const amountStyle = { 
-  fontWeight: 700, 
-  fontSize: 18, 
-  color: "#222" 
-};
-
-const statusPaidStyle = { 
-  background: "#e6f5e6", 
-  color: "#2d8a3c", 
-  fontWeight: 600, 
-  fontSize: 13, 
-  borderRadius: 8, 
-  padding: "3px 10px", 
-  marginLeft: 8 
-};
-
-const statusDueStyle = { 
-  background: "#fff4e6", 
-  color: "#e67e22", 
-  fontWeight: 600, 
-  fontSize: 13, 
-  borderRadius: 8, 
-  padding: "3px 10px", 
-  marginLeft: 8 
-};
-
-const invoiceBtnStyle = { 
-  color: "#444", 
-  fontWeight: 600, 
-  fontSize: 15, 
-  border: "none", 
-  background: "none", 
-  cursor: "pointer" 
-};
-
-const payNowBtnStyle = { 
-  color: "#fff", 
-  background: "#e67e22", 
-  fontWeight: 600, 
-  fontSize: 15, 
-  border: "none", 
-  borderRadius: 8, 
-  padding: "6px 18px", 
-  cursor: "pointer",
-  transition: "background 0.2s"
-};
-
-const detailsStyle = { 
-  marginTop: 10, 
-  color: "#666", 
-  fontSize: 14, 
-  borderTop: "1px solid #eee", 
-  paddingTop: 10, 
-  lineHeight: 1.6 
-};
-
-const debugPanelStyle = {
-  background: "#f0f0f0",
-  padding: "10px",
-  borderRadius: "8px",
-  margin: "10px 16px",
-  fontSize: "14px",
-  color: "#666"
-};
+// --- Style definitions (add your own or keep as before) ---
+const containerStyle = { maxWidth: 480, margin: "0 auto", padding: 16, background: "#f9f9f9", minHeight: "100vh" };
+const headerRowStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 };
+const headerBtnStyle = { background: "none", border: "none", fontSize: 22, cursor: "pointer" };
+const headerTitleStyle = { fontWeight: 700, fontSize: 18, flex: 1, textAlign: "center" };
+const headerIconStyle = { cursor: "pointer", padding: 4 };
+const searchRowStyle = { display: "flex", alignItems: "center", marginBottom: 16, gap: 8 };
+const searchInputStyle = { flex: 1, padding: 8, borderRadius: 8, border: "1px solid #ddd" };
+const filterBtnStyle = { padding: "8px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" };
+const pendingBoxStyle = { background: "#fffbe6", borderRadius: 10, padding: 16, marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" };
+const pendingInfoStyle = { fontWeight: 600, fontSize: 16 };
+const pendingCountStyle = { color: "#e67e22", fontWeight: 700 };
+const invoiceBtnStyle = { background: "#e67e22", color: "#fff", border: "none", padding: "8px 18px", borderRadius: 7, cursor: "pointer", fontWeight: 600, fontSize: 15 };
+const invoiceCardStyle = { background: "#fff", borderRadius: 10, padding: 16, marginBottom: 16, boxShadow: "0 2px 8px #0001" };
+const rowBetweenStyle = { display: "flex", alignItems: "center", justifyContent: "space-between" };
+const amountStyle = { fontWeight: 700, fontSize: 18, marginRight: 18 };
+const statusPaidStyle = { background: "#eafbe6", color: "#27ae60", padding: "2px 10px", borderRadius: 6, fontWeight: 600, fontSize: 13 };
+const statusDueStyle = { background: "#fff0f0", color: "#e74c3c", padding: "2px 10px", borderRadius: 6, fontWeight: 600, fontSize: 13 };
+const payNowBtnStyle = { background: "#27ae60", color: "#fff", border: "none", padding: "8px 18px", borderRadius: 7, cursor: "pointer", fontWeight: 600, fontSize: 15 };
+const detailsStyle = { background: "#f8f8f8", borderRadius: 7, padding: 10, marginTop: 10, fontSize: 15 };
 
 // Utility to load Razorpay script
 function loadRazorpayScript(src) {
   return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
     const script = document.createElement("script");
     script.src = src;
     script.onload = () => resolve(true);
@@ -200,9 +46,11 @@ export default function FeesPayment() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [debugInfo, setDebugInfo] = useState({});
   const [mobile, setMobile] = useState("");
-  const API_URL = process.env.REACT_APP_API_URL;
+  const razorpayScriptLoaded = useRef(false);
+
+  // Use environment variable for API URL
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
   // Fetch invoices on component mount
   useEffect(() => {
@@ -217,35 +65,22 @@ export default function FeesPayment() {
           return;
         }
 
-        setDebugInfo(prev => ({...prev, step: "Fetching invoices", mobile: storedMobile}));
-
         const response = await fetch(`${API_URL}/get-pending-after-payment/${storedMobile}`);
-
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
-
         const data = await response.json();
-        setDebugInfo(prev => ({...prev, 
-          responseStatus: response.status, 
-          invoiceCount: data.length,
-          lastInvoice: data[0] ? data[0].month : "None"
-        }));
-
         setInvoices(data);
         setLoading(false);
       } catch (error) {
-        console.error("Fetch error:", error);
-        setDebugInfo(prev => ({...prev, error: error.message}));
         setError(error.message);
         setLoading(false);
       }
     };
 
     fetchData();
-    // eslint-disable-next-line
-  }, []);
+  }, [API_URL]);
 
   // Toggle invoice details
   const handleToggle = (month) => {
@@ -255,15 +90,9 @@ export default function FeesPayment() {
   // Handle payment flow
   const handlePayFees = async (feeAmount, invoiceNumber) => {
     setIsProcessing(true);
-    setDebugInfo(prev => ({...prev, 
-      step: "Starting payment", 
-      invoiceNumber,
-      feeAmount
-    }));
 
     try {
       // Create order via backend
-      setDebugInfo(prev => ({...prev, step: "Creating payment order"}));
       const orderResponse = await fetch(`${API_URL}/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -276,34 +105,28 @@ export default function FeesPayment() {
       }
 
       const order = await orderResponse.json();
-      setDebugInfo(prev => ({...prev, step: "Order created", orderId: order.id}));
 
-      // Load Razorpay script
-      setDebugInfo(prev => ({...prev, step: "Loading Razorpay script"}));
-      const scriptLoaded = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
-
-      if (!scriptLoaded) {
-        setDebugInfo(prev => ({...prev, error: "Razorpay script failed to load"}));
-        alert("Razorpay payment system failed to load");
-        return;
+      // Load Razorpay script only once
+      if (!razorpayScriptLoaded.current) {
+        const scriptLoaded = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
+        if (!scriptLoaded) {
+          alert("Razorpay payment system failed to load");
+          setIsProcessing(false);
+          return;
+        }
+        razorpayScriptLoaded.current = true;
       }
 
       // Configure payment options
       const paymentOptions = {
-        key: "rzp_test_ofNPcpgm5CLqie", // Replace with your Razorpay Key ID
+        key: "rzp_test_ofNPcpgm5CLqie", // Replace with your Razorpay Key ID for production
         amount: order.amount,
         currency: order.currency,
         name: "Mimansa School",
         description: "Fee Payment",
         order_id: order.id,
         handler: async function (response) {
-          setDebugInfo(prev => ({...prev, 
-            step: "Payment successful", 
-            paymentId: response.razorpay_payment_id
-          }));
-
           // Update payment status in backend
-          setDebugInfo(prev => ({...prev, step: "Updating payment status"}));
           const updateResponse = await fetch(`${API_URL}/update-payment-status`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -319,9 +142,7 @@ export default function FeesPayment() {
           }
 
           // Refresh invoice list
-          setDebugInfo(prev => ({...prev, step: "Refreshing invoices"}));
           const refreshResponse = await fetch(`${API_URL}/get-pending-after-payment/${mobile}`);
-
           if (!refreshResponse.ok) {
             const errorText = await refreshResponse.text();
             throw new Error(`Refresh failed: ${errorText}`);
@@ -329,16 +150,10 @@ export default function FeesPayment() {
 
           const newData = await refreshResponse.json();
           setInvoices(newData);
-          setDebugInfo(prev => ({...prev, 
-            step: "Data refreshed", 
-            newInvoiceCount: newData.length
-          }));
-
           alert(`✅ Payment Successful! ID: ${response.razorpay_payment_id}`);
         },
         modal: {
           ondismiss: function() {
-            setDebugInfo(prev => ({...prev, step: "Payment cancelled"}));
             alert("Payment cancelled or window closed");
           }
         },
@@ -352,20 +167,11 @@ export default function FeesPayment() {
 
       const rzp = new window.Razorpay(paymentOptions);
       rzp.on('payment.failed', function (response) {
-        setDebugInfo(prev => ({...prev, 
-          step: "Payment failed", 
-          error: response.error.description
-        }));
         alert(`❌ Payment Failed! Reason: ${response.error.description}`);
       });
 
       rzp.open();
     } catch (error) {
-      console.error("Payment error:", error);
-      setDebugInfo(prev => ({...prev, 
-        step: "Payment error", 
-        error: error.message
-      }));
       alert(`⚠️ Error: ${error.message}`);
     } finally {
       setIsProcessing(false);
