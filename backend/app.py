@@ -165,10 +165,20 @@ def get_pending_after_payment(contact):
             last_paid = max(paid_invoices, key=lambda x: 
                 datetime.strptime(x.get('payment_date', '2000-01-01 00:00:00'), '%Y-%m-%d %H:%M:%S')
             )
+            # GENERATE MISSING INVOICES HERE
+            generate_invoices_to_current(
+                student_id=last_paid['student_id'],
+                contact=contact,
+                last_paid_month=last_paid['month']
+            )
+            # Refresh the invoice list after generation
+            all_invoices = list(invoices_collection.find({"contact": contact}, {"_id": 0}))
         
         # If no paid invoices, return all pending
         if not last_paid:
-            return jsonify([inv for inv in all_invoices if inv['status'] == 'pending'])
+            pending_invoices = [inv for inv in all_invoices if inv['status'] == 'pending']
+            pending_invoices.sort(key=lambda x: month_to_sort_key(x['month']))
+            return jsonify(pending_invoices)
         
         # Filter pending invoices after last paid
         last_paid_key = month_to_sort_key(last_paid['month'])
@@ -185,6 +195,7 @@ def get_pending_after_payment(contact):
     except Exception as e:
         logger.error(f"Error fetching pending invoices: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
 
 
 @app.route('/get-student-by-contact/<contact>', methods=['GET'])
