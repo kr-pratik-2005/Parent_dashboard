@@ -17,10 +17,14 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# CORS setup
-CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
+# CORS setup - allow both local development and production frontend
+allowed_origins = [
+    "http://localhost:3000",
+    "https://parent-dashboard-zfns.vercel.app"  # Replace with your actual Vercel URL
+]
+CORS(app, resources={r"/*": {"origins": allowed_origins}})
 
-# MongoDB setup
+# MongoDB setup - using environment variable
 mongo_uri = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 client = MongoClient(mongo_uri)
 db = client['mimansa_database']
@@ -42,6 +46,7 @@ def month_to_sort_key(month_str):
         return (int(year), month_names.index(month) + 1)
     except:
         return (0, 0)  # Fallback
+
 @app.route('/')
 def health_check():
     return "Backend is running!", 200
@@ -193,12 +198,6 @@ def get_student_by_contact(contact):
         logger.error(f"Error fetching student: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
-
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
