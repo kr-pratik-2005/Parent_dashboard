@@ -5,4 +5,5 @@ pymongo
 razorpay
 python-dateutil
 gunicorn
+setuptools
 
