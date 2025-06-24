@@ -41,6 +41,9 @@ def month_to_sort_key(month_str):
         return (int(year), month_names.index(month) + 1)
     except:
         return (0, 0)  # Fallback
+@app.route('/')
+def health_check():
+    return "Backend is running!", 200
 
 def generate_invoices_to_current(student_id, contact, last_paid_month):
     """Generate invoices from last_paid+1 to current month"""
