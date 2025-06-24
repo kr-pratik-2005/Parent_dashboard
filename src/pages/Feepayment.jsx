@@ -202,6 +202,7 @@ export default function FeesPayment() {
   const [error, setError] = useState("");
   const [debugInfo, setDebugInfo] = useState({});
   const [mobile, setMobile] = useState("");
+  const API_URL = process.env.REACT_APP_API_URL;
 
   // Fetch invoices on component mount
   useEffect(() => {
@@ -209,29 +210,29 @@ export default function FeesPayment() {
       try {
         const storedMobile = localStorage.getItem('parentMobile');
         setMobile(storedMobile);
-        
+
         if (!storedMobile) {
           setError("Please login to view invoices");
           setLoading(false);
           return;
         }
-        
+
         setDebugInfo(prev => ({...prev, step: "Fetching invoices", mobile: storedMobile}));
-        
-        const response = await fetch(`http://localhost:5000/get-pending-after-payment/${storedMobile}`);
-        
+
+        const response = await fetch(`${API_URL}/get-pending-after-payment/${storedMobile}`);
+
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
-        
+
         const data = await response.json();
         setDebugInfo(prev => ({...prev, 
           responseStatus: response.status, 
           invoiceCount: data.length,
           lastInvoice: data[0] ? data[0].month : "None"
         }));
-        
+
         setInvoices(data);
         setLoading(false);
       } catch (error) {
@@ -241,8 +242,9 @@ export default function FeesPayment() {
         setLoading(false);
       }
     };
-    
+
     fetchData();
+    // eslint-disable-next-line
   }, []);
 
   // Toggle invoice details
@@ -258,28 +260,28 @@ export default function FeesPayment() {
       invoiceNumber,
       feeAmount
     }));
-    
+
     try {
       // Create order via backend
       setDebugInfo(prev => ({...prev, step: "Creating payment order"}));
-      const orderResponse = await fetch("http://localhost:5000/create-order", {
+      const orderResponse = await fetch(`${API_URL}/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: feeAmount }),
       });
-      
+
       if (!orderResponse.ok) {
         const errorText = await orderResponse.text();
         throw new Error(`Order creation failed: ${errorText}`);
       }
-      
+
       const order = await orderResponse.json();
       setDebugInfo(prev => ({...prev, step: "Order created", orderId: order.id}));
 
       // Load Razorpay script
       setDebugInfo(prev => ({...prev, step: "Loading Razorpay script"}));
       const scriptLoaded = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
-      
+
       if (!scriptLoaded) {
         setDebugInfo(prev => ({...prev, error: "Razorpay script failed to load"}));
         alert("Razorpay payment system failed to load");
@@ -299,10 +301,10 @@ export default function FeesPayment() {
             step: "Payment successful", 
             paymentId: response.razorpay_payment_id
           }));
-          
+
           // Update payment status in backend
           setDebugInfo(prev => ({...prev, step: "Updating payment status"}));
-          const updateResponse = await fetch('http://localhost:5000/update-payment-status', {
+          const updateResponse = await fetch(`${API_URL}/update-payment-status`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -310,28 +312,28 @@ export default function FeesPayment() {
               payment_id: response.razorpay_payment_id
             })
           });
-          
+
           if (!updateResponse.ok) {
             const errorText = await updateResponse.text();
             throw new Error(`Payment update failed: ${errorText}`);
           }
-          
+
           // Refresh invoice list
           setDebugInfo(prev => ({...prev, step: "Refreshing invoices"}));
-          const refreshResponse = await fetch(`http://localhost:5000/get-pending-after-payment/${mobile}`);
-          
+          const refreshResponse = await fetch(`${API_URL}/get-pending-after-payment/${mobile}`);
+
           if (!refreshResponse.ok) {
             const errorText = await refreshResponse.text();
             throw new Error(`Refresh failed: ${errorText}`);
           }
-          
+
           const newData = await refreshResponse.json();
           setInvoices(newData);
           setDebugInfo(prev => ({...prev, 
             step: "Data refreshed", 
             newInvoiceCount: newData.length
           }));
-          
+
           alert(`✅ Payment Successful! ID: ${response.razorpay_payment_id}`);
         },
         modal: {
@@ -347,7 +349,7 @@ export default function FeesPayment() {
         },
         theme: { color: "#e67e22" }
       };
-      
+
       const rzp = new window.Razorpay(paymentOptions);
       rzp.on('payment.failed', function (response) {
         setDebugInfo(prev => ({...prev, 
@@ -356,7 +358,7 @@ export default function FeesPayment() {
         }));
         alert(`❌ Payment Failed! Reason: ${response.error.description}`);
       });
-      
+
       rzp.open();
     } catch (error) {
       console.error("Payment error:", error);
@@ -369,19 +371,6 @@ export default function FeesPayment() {
       setIsProcessing(false);
     }
   };
-
-  // Debug panel component
-  // const DebugPanel = () => (
-  //   <div style={debugPanelStyle}>
-  //     <strong>Debug Information:</strong>
-  //     <div>Step: {debugInfo.step || "Initialized"}</div>
-  //     {debugInfo.mobile && <div>Mobile: {debugInfo.mobile}</div>}
-  //     {debugInfo.responseStatus && <div>Response Status: {debugInfo.responseStatus}</div>}
-  //     {debugInfo.invoiceCount !== undefined && <div>Invoices: {debugInfo.invoiceCount}</div>}
-  //     {debugInfo.lastInvoice && <div>Last Invoice: {debugInfo.lastInvoice}</div>}
-  //     {debugInfo.error && <div style={{color: "red"}}>Error: {debugInfo.error}</div>}
-  //   </div>
-  // );
 
   if (loading) return (
     <div style={{ 
@@ -396,7 +385,7 @@ export default function FeesPayment() {
       <div>Loading invoices...</div>
     </div>
   );
-  
+
   if (error) return (
     <div style={{ 
       textAlign: 'center', 
@@ -436,9 +425,6 @@ export default function FeesPayment() {
         />
         <button style={filterBtnStyle}>☰</button>
       </div>
-
-      {/* Debug Panel */}
-     
 
       {/* Pending Payment Box */}
       <div style={pendingBoxStyle}>
