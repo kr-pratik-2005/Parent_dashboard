@@ -21,7 +21,8 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
 # MongoDB setup
-client = MongoClient("mongodb://localhost:27017/")
+mongo_uri = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
+client = MongoClient(mongo_uri)
 db = client['mimansa_database']
 students_collection = db['students']
 invoices_collection = db['invoices']
