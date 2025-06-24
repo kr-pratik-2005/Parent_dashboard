@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import giraffeIcon from '../assets/Logo.png';
-  
 
 const phoneNumber = sessionStorage.getItem('phoneNumber') || '';
 const maskedNumber = phoneNumber.slice(-2);
-export default function Login2(){
+
+export default function Login2() {
   const [otp, setOtp] = useState(['', '', '', '', '', '']); // 6-digit OTP
   const [error, setError] = useState('');
   const inputRefs = useRef([]);
@@ -37,6 +37,13 @@ export default function Login2(){
     try {
       const result = await window.confirmationResult.confirm(otpString);
       // User successfully signed in
+      
+      // Store mobile number in localStorage for invoice lookup
+      const mobile = sessionStorage.getItem('phoneNumber'); // e.g. '+911234567890'
+      const cleanMobile = mobile.replace('+91', '');
+      localStorage.setItem('parentMobile', cleanMobile);
+
+      // Redirect to parent dashboard or fee payment page
       navigate('/parent-dashboard');
     } catch (err) {
       setError('Invalid OTP. Please try again.');
@@ -73,9 +80,8 @@ export default function Login2(){
         <img src={giraffeIcon} alt="giraffe" style={{ width: '60px', marginBottom: '16px' }} />
         <h2 style={{ fontWeight: 600, margin: '0 0 8px' }}>Enter Verification Code</h2>
         <p style={{ color: '#666', fontSize: '0.95rem', margin: '0 0 24px' }}>
-  Please enter the 6-digit code sent to your mobile number ********{maskedNumber}
-</p>
-
+          Please enter the 6-digit code sent to your mobile number ********{maskedNumber}
+        </p>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '20px' }}>
           {otp.map((digit, idx) => (
@@ -84,7 +90,7 @@ export default function Login2(){
               ref={el => inputRefs.current[idx] = el}
               type="text"
               maxLength="1"
-              value={digit ? '*' : ''}
+              value={digit}
               onChange={e => {
                 // Get the actual value typed
                 const inputVal = e.target.value;
