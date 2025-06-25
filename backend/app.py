@@ -24,7 +24,7 @@ app = Flask(__name__)
 # CORS setup - allow both local development and production frontend
 allowed_origins = [
     "http://localhost:3000",
-    "https://parent-dashboard-zfns.vercel.app"  # Replace with your actual Vercel URL
+    "https://parent-dashboard-chi.vercel.app/"  # Replace with your actual Vercel URL
 ]
 CORS(app, resources={r"/*": {"origins": allowed_origins}})
 
