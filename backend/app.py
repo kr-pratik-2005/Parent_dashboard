@@ -9,7 +9,11 @@ from dateutil.relativedelta import relativedelta
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -43,9 +47,12 @@ def month_to_sort_key(month_str):
                    "July", "August", "September", "October", "November", "December"]
     try:
         month, year = month_str.split()
-        return (int(year), month_names.index(month) + 1)
-    except:
-        return (0, 0)  # Fallback
+        month_index = month_names.index(month) + 1
+        logger.info(f"Converted '{month_str}' to key: ({int(year)}, {month_index})")
+        return (int(year), month_index)
+    except Exception as e:
+        logger.error(f"Error converting month '{month_str}': {str(e)}")
+        return (0, 0)
 
 @app.route('/')
 def health_check():
@@ -53,54 +60,64 @@ def health_check():
 
 def generate_invoices_to_current(student_id, contact, last_paid_month):
     """Generate invoices from last_paid+1 to current month"""
+    logger.info(f"Generating invoices for student {student_id} after {last_paid_month}")
     month_names = ["January", "February", "March", "April", "May", "June",
                    "July", "August", "September", "October", "November", "December"]
 
-    # Parse last paid month
-    paid_month, paid_year = last_paid_month.split()
-    paid_year = int(paid_year)
-    paid_month_index = month_names.index(paid_month)
+    try:
+        # Parse last paid month
+        paid_month, paid_year = last_paid_month.split()
+        paid_year = int(paid_year)
+        paid_month_index = month_names.index(paid_month)
 
-    now = datetime.now()
-    current_year = now.year
-    current_month_index = now.month - 1  # 0-based index
+        now = datetime.now()
+        current_year = now.year
+        current_month_index = now.month - 1  # 0-based index
+        logger.info(f"Current date: {now}. Generating from {paid_month_index+1}/{paid_year+1} to {current_month_index}/{current_year}")
 
-    new_invoices = []
-
-    # Start from next month after last paid
-    gen_year = paid_year
-    gen_month_index = paid_month_index + 1
-    if gen_month_index >= 12:
-        gen_month_index = 0
-        gen_year += 1
-
-    while (gen_year < current_year) or (gen_year == current_year and gen_month_index <= current_month_index):
-        month_str = f"{month_names[gen_month_index]} {gen_year}"
-
-        # Only create if it doesn't exist
-        if not invoices_collection.find_one({"student_id": student_id, "month": month_str}):
-            due_date = (datetime(gen_year, gen_month_index + 1, 1) + relativedelta(months=1, days=-1))
-            new_invoice = {
-                "student_id": student_id,
-                "contact": contact,
-                "invoice_number": f"INV-{gen_year}{gen_month_index+1:02d}",
-                "month": month_str,
-                "amount": 9500,
-                "due_date": due_date.strftime('%Y-%m-%d'),
-                "status": "pending",
-                "payment_id": None
-            }
-            new_invoices.append(new_invoice)
-
-        # Move to next month
-        gen_month_index += 1
+        new_invoices = []
+        gen_year = paid_year
+        gen_month_index = paid_month_index + 1
+        
+        # Handle year rollover
         if gen_month_index >= 12:
             gen_month_index = 0
             gen_year += 1
 
-    if new_invoices:
-        invoices_collection.insert_many(new_invoices)
-    return len(new_invoices)
+        while (gen_year < current_year) or (gen_year == current_year and gen_month_index <= current_month_index):
+            month_str = f"{month_names[gen_month_index]} {gen_year}"
+            logger.info(f"Checking month: {month_str}")
+
+            # Only create if it doesn't exist
+            if not invoices_collection.find_one({"student_id": student_id, "month": month_str}):
+                due_date = (datetime(gen_year, gen_month_index + 1, 1) + relativedelta(months=1, days=-1))
+                new_invoice = {
+                    "student_id": student_id,
+                    "contact": contact,
+                    "invoice_number": f"INV-{gen_year}{gen_month_index+1:02d}",
+                    "month": month_str,
+                    "amount": 9500,
+                    "due_date": due_date.strftime('%Y-%m-%d'),
+                    "status": "pending",
+                    "payment_id": None
+                }
+                logger.info(f"Creating new invoice for {month_str}")
+                new_invoices.append(new_invoice)
+
+            # Move to next month
+            gen_month_index += 1
+            if gen_month_index >= 12:
+                gen_month_index = 0
+                gen_year += 1
+
+        if new_invoices:
+            result = invoices_collection.insert_many(new_invoices)
+            logger.info(f"Inserted {len(result.inserted_ids)} new invoices")
+        return len(new_invoices)
+    
+    except Exception as e:
+        logger.error(f"Error in generate_invoices_to_current: {str(e)}")
+        return 0
 
 # API Endpoints
 @app.route('/create-order', methods=['POST'])
@@ -136,7 +153,6 @@ def update_payment_status():
     if result.modified_count > 0:
         paid_invoice = invoices_collection.find_one({"invoice_number": invoice_number})
         if paid_invoice:
-            # Only generate up to current month
             generate_invoices_to_current(
                 student_id=paid_invoice['student_id'],
                 contact=paid_invoice['contact'],
@@ -148,54 +164,62 @@ def update_payment_status():
 @app.route('/get-pending-after-payment/<contact>', methods=['GET'])
 def get_pending_after_payment(contact):
     try:
-        logger.info(f"Fetching pending invoices for contact: {contact}")
+        logger.info(f"📞 Fetching pending invoices for contact: {contact}")
         
-        # Get all invoices for contact
+        # Get all invoices for this contact
         all_invoices = list(invoices_collection.find({"contact": contact}, {"_id": 0}))
-        
-        if not all_invoices:
-            return jsonify([])
-        
-        # Find last paid invoice
-        last_paid = None
-        paid_invoices = [inv for inv in all_invoices if inv.get('status') == 'paid']
-        
-        if paid_invoices:
-            # Get most recent paid invoice
-            last_paid = max(paid_invoices, key=lambda x: 
-                datetime.strptime(x.get('payment_date', '2000-01-01 00:00:00'), '%Y-%m-%d %H:%M:%S')
-            )
-            # GENERATE MISSING INVOICES HERE
-            generate_invoices_to_current(
-                student_id=last_paid['student_id'],
-                contact=contact,
-                last_paid_month=last_paid['month']
-            )
-            # Refresh the invoice list after generation
-            all_invoices = list(invoices_collection.find({"contact": contact}, {"_id": 0}))
-        
-        # If no paid invoices, return all pending
-        if not last_paid:
-            pending_invoices = [inv for inv in all_invoices if inv['status'] == 'pending']
-            pending_invoices.sort(key=lambda x: month_to_sort_key(x['month']))
-            return jsonify(pending_invoices)
-        
-        # Filter pending invoices after last paid
-        last_paid_key = month_to_sort_key(last_paid['month'])
-        pending_invoices = [
-            inv for inv in all_invoices
-            if inv['status'] == 'pending' and 
-            month_to_sort_key(inv['month']) > last_paid_key
-        ]
-        
-        # Sort by month
-        pending_invoices.sort(key=lambda x: month_to_sort_key(x['month']))
-        return jsonify(pending_invoices)
-        
-    except Exception as e:
-        logger.error(f"Error fetching pending invoices: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        logger.info(f"Fetched invoices from DB: {all_invoices}")
 
+        logger.info(f"Found {len(all_invoices)} total invoices")
+
+        if not all_invoices:
+            logger.warning("No invoices found for contact")
+            return jsonify({"last_paid_month": None, "pending_invoices": []})
+        
+        # Find the last paid invoice based on month
+        paid_invoices = [inv for inv in all_invoices if inv.get('status') == 'paid']
+        last_paid_invoice = None
+
+        if paid_invoices:
+            # ✅ Use month (not payment_date) to find latest paid month
+            last_paid_invoice = max(paid_invoices, key=lambda x: month_to_sort_key(x['month']))
+            logger.info(f"✅ Last paid month: {last_paid_invoice['month']}")
+
+            # Generate invoices after that month
+            generate_invoices_to_current(
+                student_id=last_paid_invoice['student_id'],
+                contact=contact,
+                last_paid_month=last_paid_invoice['month']
+            )
+
+            # Refresh invoice list from DB
+            all_invoices = list(invoices_collection.find({"contact": contact}, {"_id": 0}))
+        else:
+            logger.warning("No paid invoices found")
+
+        # Filter pending invoices from (last_paid + 1) onward
+        pending_invoices = []
+        if last_paid_invoice:
+            last_paid_key = month_to_sort_key(last_paid_invoice['month'])
+            pending_invoices = [
+                inv for inv in all_invoices
+                if inv['status'] == 'pending' and month_to_sort_key(inv['month']) > last_paid_key
+            ]
+        else:
+            # No paid invoices: return all pending, sorted
+            pending_invoices = [inv for inv in all_invoices if inv['status'] == 'pending']
+        
+        # Sort pending invoices chronologically
+        pending_invoices.sort(key=lambda x: month_to_sort_key(x['month']))
+
+        return jsonify({
+            "last_paid_month": last_paid_invoice['month'] if last_paid_invoice else None,
+            "pending_invoices": pending_invoices
+        })
+
+    except Exception as e:
+        logger.exception(f"🔥 Critical error in get-pending-after-payment: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/get-student-by-contact/<contact>', methods=['GET'])

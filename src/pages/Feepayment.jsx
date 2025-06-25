@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Bell, Loader } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
 
-// --- Style definitions (add your own or keep as before) ---
 const containerStyle = { maxWidth: 480, margin: "0 auto", padding: 16, background: "#f9f9f9", minHeight: "100vh" };
 const headerRowStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 };
 const headerBtnStyle = { background: "none", border: "none", fontSize: 22, cursor: "pointer" };
@@ -24,13 +23,9 @@ const statusDueStyle = { background: "#fff0f0", color: "#e74c3c", padding: "2px 
 const payNowBtnStyle = { background: "#27ae60", color: "#fff", border: "none", padding: "8px 18px", borderRadius: 7, cursor: "pointer", fontWeight: 600, fontSize: 15 };
 const detailsStyle = { background: "#f8f8f8", borderRadius: 7, padding: 10, marginTop: 10, fontSize: 15 };
 
-// Utility to load Razorpay script
 function loadRazorpayScript(src) {
   return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
+    if (window.Razorpay) return resolve(true);
     const script = document.createElement("script");
     script.src = src;
     script.onload = () => resolve(true);
@@ -42,120 +37,76 @@ function loadRazorpayScript(src) {
 export default function FeesPayment() {
   const navigate = useNavigate();
   const [openInvoice, setOpenInvoice] = useState(null);
-  const [invoices, setInvoices] = useState([]);
+  const [invoices, setInvoices] = useState({ last_paid_month: null, pending_invoices: [] });
   const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobile, setMobile] = useState("");
   const razorpayScriptLoaded = useRef(false);
 
-  // Use environment variable for API URL
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
-  // Fetch invoices on component mount
   useEffect(() => {
     const fetchData = async () => {
       try {
         const storedMobile = localStorage.getItem('parentMobile');
         setMobile(storedMobile);
-
-        if (!storedMobile) {
-          setError("Please login to view invoices");
-          setLoading(false);
-          return;
-        }
+        if (!storedMobile) throw new Error("Please login to view invoices");
 
         const response = await fetch(`${API_URL}/get-pending-after-payment/${storedMobile}`);
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
+        if (!response.ok) throw new Error(await response.text());
         const data = await response.json();
+        console.log("Fetched data:", data);
         setInvoices(data);
-        setLoading(false);
       } catch (error) {
         setError(error.message);
+      } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, [API_URL]);
 
-  // Toggle invoice details
   const handleToggle = (month) => {
     setOpenInvoice((prev) => (prev === month ? null : month));
   };
 
-  // Handle payment flow
-  const handlePayFees = async (feeAmount, invoiceNumber) => {
+  const handlePayFees = async (amount, invoiceNumber) => {
     setIsProcessing(true);
-
     try {
-      // Create order via backend
-      const orderResponse = await fetch(`${API_URL}/create-order`, {
+      const orderRes = await fetch(`${API_URL}/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: feeAmount }),
+        body: JSON.stringify({ amount })
       });
 
-      if (!orderResponse.ok) {
-        const errorText = await orderResponse.text();
-        throw new Error(`Order creation failed: ${errorText}`);
-      }
-
-      const order = await orderResponse.json();
-
-      // Load Razorpay script only once
+      const order = await orderRes.json();
       if (!razorpayScriptLoaded.current) {
         const scriptLoaded = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
-        if (!scriptLoaded) {
-          alert("Razorpay payment system failed to load");
-          setIsProcessing(false);
-          return;
-        }
+        if (!scriptLoaded) throw new Error("Failed to load Razorpay");
         razorpayScriptLoaded.current = true;
       }
 
-      // Configure payment options
-      const paymentOptions = {
-        key: "rzp_test_ofNPcpgm5CLqie", // Replace with your Razorpay Key ID for production
+      const options = {
+        key: process.env.REACT_APP_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: "Mimansa School",
         description: "Fee Payment",
         order_id: order.id,
-        handler: async function (response) {
-          // Update payment status in backend
-          const updateResponse = await fetch(`${API_URL}/update-payment-status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              invoice_number: invoiceNumber,
-              payment_id: response.razorpay_payment_id
-            })
+        handler: async (response) => {
+          await fetch(`${API_URL}/update-payment-status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ invoice_number: invoiceNumber, payment_id: response.razorpay_payment_id })
           });
-
-          if (!updateResponse.ok) {
-            const errorText = await updateResponse.text();
-            throw new Error(`Payment update failed: ${errorText}`);
-          }
-
-          // Refresh invoice list
-          const refreshResponse = await fetch(`${API_URL}/get-pending-after-payment/${mobile}`);
-          if (!refreshResponse.ok) {
-            const errorText = await refreshResponse.text();
-            throw new Error(`Refresh failed: ${errorText}`);
-          }
-
-          const newData = await refreshResponse.json();
-          setInvoices(newData);
+          const res = await fetch(`${API_URL}/get-pending-after-payment/${mobile}`);
+          const data = await res.json();
+          setInvoices(data);
           alert(`✅ Payment Successful! ID: ${response.razorpay_payment_id}`);
         },
         modal: {
-          ondismiss: function() {
-            alert("Payment cancelled or window closed");
-          }
+          ondismiss: () => alert("Payment cancelled"),
         },
         prefill: {
           name: "Parent Name",
@@ -165,149 +116,95 @@ export default function FeesPayment() {
         theme: { color: "#e67e22" }
       };
 
-      const rzp = new window.Razorpay(paymentOptions);
-      rzp.on('payment.failed', function (response) {
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", (response) => {
         alert(`❌ Payment Failed! Reason: ${response.error.description}`);
       });
-
       rzp.open();
-    } catch (error) {
-      alert(`⚠️ Error: ${error.message}`);
+    } catch (err) {
+      alert(`⚠️ Error: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const pending = invoices.pending_invoices || [];
+
   if (loading) return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      height: '100vh',
-      flexDirection: 'column',
-      gap: '10px'
-    }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 100 }}>
       <Loader size={32} className="animate-spin" />
       <div>Loading invoices...</div>
     </div>
   );
 
   if (error) return (
-    <div style={{ 
-      textAlign: 'center', 
-      padding: 20,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px'
-    }}>
-      <div style={{color: 'red', fontSize: 18}}>{error}</div>
-      <button 
-        style={payNowBtnStyle}
-        onClick={() => window.location.reload()}
-      >
-        Retry
-      </button>
+    <div style={{ textAlign: "center", padding: 20 }}>
+      <div style={{ color: "red" }}>{error}</div>
+      <button style={payNowBtnStyle} onClick={() => window.location.reload()}>Retry</button>
     </div>
   );
 
   return (
     <div style={containerStyle}>
-      {/* Header Row */}
       <div style={headerRowStyle}>
-        <button onClick={() => navigate(-1)} style={headerBtnStyle} aria-label="Back">←</button>
+        <button onClick={() => navigate(-1)} style={headerBtnStyle}>←</button>
         <div style={headerTitleStyle}>Fees Payment</div>
-        <span style={headerIconStyle} onClick={() => alert("Notifications")} aria-label="Notifications" role="button">
+        <span style={headerIconStyle} onClick={() => alert("Notifications")}>
           <Bell size={22} color="#666" />
         </span>
       </div>
 
-      {/* Search Bar */}
       <div style={searchRowStyle}>
-        <input 
-          style={searchInputStyle} 
-          placeholder="Search" 
-          value={mobile}
-          onChange={(e) => setMobile(e.target.value)}
-        />
+        <input style={searchInputStyle} placeholder="Search" value={mobile} onChange={(e) => setMobile(e.target.value)} />
         <button style={filterBtnStyle}>☰</button>
       </div>
 
-      {/* Pending Payment Box */}
+      {invoices.last_paid_month && (
+        <div style={{ marginBottom: 16 }}>Last paid month: <strong>{invoices.last_paid_month}</strong></div>
+      )}
+
       <div style={pendingBoxStyle}>
         <div>
           <span style={{ fontSize: 21, marginRight: 10 }}>🕑</span>
           <span style={pendingInfoStyle}>
             Pending Payment<br />
             <span style={{ fontSize: 13, color: "#888" }}>
-              You have <span style={pendingCountStyle}>
-                {invoices.length} payment
-              </span> pending
+              You have <span style={pendingCountStyle}>{pending.length}</span> payment(s) pending
             </span>
           </span>
         </div>
         <button style={invoiceBtnStyle}>View &gt;</button>
       </div>
 
-      {/* Invoice Cards */}
-      {invoices.length > 0 ? (
-        invoices.map((inv) => (
+      {pending.length > 0 ? (
+        pending.map((inv) => (
           <div key={inv.invoice_number} style={invoiceCardStyle}>
             <div style={rowBetweenStyle}>
               <span>
                 <span style={amountStyle}>₹ {inv.amount}</span>
-                <span style={inv.status === "paid" ? statusPaidStyle : statusDueStyle}>
-                  {inv.status}
-                </span>
+                <span style={inv.status === "paid" ? statusPaidStyle : statusDueStyle}>{inv.status}</span>
               </span>
-              {inv.status === "pending" ? (
-                <button
-                  style={isProcessing ? {...payNowBtnStyle, background: "#aaa"} : payNowBtnStyle}
-                  onClick={() => handlePayFees(inv.amount, inv.invoice_number)}
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? 
-                    <span style={{display: "flex", alignItems: "center", gap: "5px"}}>
-                      <Loader size={16} /> Processing...
-                    </span> : 
-                    "Pay Now"
-                  }
-                </button>
-              ) : (
-                <button
-                  style={invoiceBtnStyle}
-                  onClick={() => handleToggle(inv.month)}
-                >
-                  Invoice {openInvoice === inv.month ? "▲" : "▼"}
-                </button>
-              )}
+              <button
+                style={isProcessing ? { ...payNowBtnStyle, background: "#aaa" } : payNowBtnStyle}
+                onClick={() => handlePayFees(inv.amount, inv.invoice_number)}
+                disabled={isProcessing}
+              >
+                {isProcessing ? <><Loader size={16} /> Processing...</> : "Pay Now"}
+              </button>
             </div>
-            <div style={{ color: "#888", fontSize: 14, marginTop: 7 }}>
-              Daycare Fee for {inv.month}
-            </div>
+            <div style={{ color: "#888", fontSize: 14, marginTop: 7 }}>Daycare Fee for {inv.month}</div>
             {openInvoice === inv.month && (
               <div style={detailsStyle}>
-                <div>
-                  Invoice Number<br />
-                  <b>{inv.invoice_number}</b>
-                </div>
-                <div style={{ marginTop: 4 }}>
-                  Payment Date<br />
-                  <b>{inv.payment_date || "Not paid yet"}</b>
-                </div>
+                <div>Invoice Number<br /><b>{inv.invoice_number}</b></div>
+                <div style={{ marginTop: 4 }}>Payment Date<br /><b>{inv.payment_date || "Not paid yet"}</b></div>
               </div>
             )}
           </div>
         ))
       ) : (
-        <div style={{ textAlign: 'center', padding: 20 }}>
-          No pending payments found
-          <div style={{marginTop: 10, fontSize: 14, color: "#666"}}>
-            Future invoices will appear after your next payment
-          </div>
-        </div>
+        <div style={{ textAlign: "center", padding: 20 }}>No pending payments found</div>
       )}
 
-      {/* Bottom Navigation Bar */}
       <BottomNav />
     </div>
   );
