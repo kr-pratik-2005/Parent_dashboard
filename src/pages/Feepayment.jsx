@@ -9,8 +9,6 @@ const headerBtnStyle = { background: "none", border: "none", fontSize: 22, curso
 const headerTitleStyle = { fontWeight: 700, fontSize: 18, flex: 1, textAlign: "center" };
 const headerIconStyle = { cursor: "pointer", padding: 4 };
 const searchRowStyle = { display: "flex", alignItems: "center", marginBottom: 16, gap: 8 };
-const searchInputStyle = { flex: 1, padding: 8, borderRadius: 8, border: "1px solid #ddd" };
-const filterBtnStyle = { padding: "8px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" };
 const pendingBoxStyle = { background: "#fffbe6", borderRadius: 10, padding: 16, marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" };
 const pendingInfoStyle = { fontWeight: 600, fontSize: 16 };
 const pendingCountStyle = { color: "#e67e22", fontWeight: 700 };
@@ -22,7 +20,8 @@ const statusPaidStyle = { background: "#eafbe6", color: "#27ae60", padding: "2px
 const statusDueStyle = { background: "#fff0f0", color: "#e74c3c", padding: "2px 10px", borderRadius: 6, fontWeight: 600, fontSize: 13 };
 const payNowBtnStyle = { background: "#27ae60", color: "#fff", border: "none", padding: "8px 18px", borderRadius: 7, cursor: "pointer", fontWeight: 600, fontSize: 15 };
 const detailsStyle = { background: "#f8f8f8", borderRadius: 7, padding: 10, marginTop: 10, fontSize: 15 };
-
+const filterBtnStyle = { padding: "8px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" };
+const searchInputStyle = { flex: 1, padding: 8, borderRadius: 8, border: "1px solid #ddd" };
 function loadRazorpayScript(src) {
   return new Promise((resolve) => {
     if (window.Razorpay) return resolve(true);
@@ -38,28 +37,28 @@ export default function FeesPayment() {
   const navigate = useNavigate();
   const [openInvoice, setOpenInvoice] = useState(null);
   const [invoices, setInvoices] = useState({ last_paid_month: null, pending_invoices: [] });
-  const [isProcessing, setIsProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobile, setMobile] = useState("");
+  const [processingInvoiceNumber, setProcessingInvoiceNumber] = useState(null);
   const razorpayScriptLoaded = useRef(false);
 
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+  const razorpayKey = process.env.REACT_APP_RAZORPAY_KEY_ID;
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const storedMobile = localStorage.getItem('parentMobile');
-        setMobile(storedMobile);
         if (!storedMobile) throw new Error("Please login to view invoices");
+        setMobile(storedMobile);
 
-        const response = await fetch(`${API_URL}/get-pending-after-payment/${storedMobile}`);
-        if (!response.ok) throw new Error(await response.text());
-        const data = await response.json();
-        console.log("Fetched data:", data);
+        const res = await fetch(`${API_URL}/get-pending-after-payment/${storedMobile}`);
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
         setInvoices(data);
-      } catch (error) {
-        setError(error.message);
+      } catch (err) {
+        setError(err.message);
       } finally {
         setLoading(false);
       }
@@ -68,41 +67,41 @@ export default function FeesPayment() {
   }, [API_URL]);
 
   const handleToggle = (month) => {
-    setOpenInvoice((prev) => (prev === month ? null : month));
+    setOpenInvoice(prev => prev === month ? null : month);
   };
 
   const handlePayFees = async (amount, invoiceNumber) => {
-    setIsProcessing(true);
+    setProcessingInvoiceNumber(invoiceNumber);
     try {
       const orderRes = await fetch(`${API_URL}/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount })
       });
-
       const order = await orderRes.json();
+
       if (!razorpayScriptLoaded.current) {
-        const scriptLoaded = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
-        if (!scriptLoaded) throw new Error("Failed to load Razorpay");
+        const loaded = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
+        if (!loaded) throw new Error("Failed to load Razorpay");
         razorpayScriptLoaded.current = true;
       }
 
-      const options = {
-        key: process.env.REACT_APP_RAZORPAY_KEY_ID,
+      const rzp = new window.Razorpay({
+        key: razorpayKey,
         amount: order.amount,
         currency: order.currency,
         name: "Mimansa School",
         description: "Fee Payment",
         order_id: order.id,
-        handler: async (response) => {
+        handler: async function (response) {
           await fetch(`${API_URL}/update-payment-status`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ invoice_number: invoiceNumber, payment_id: response.razorpay_payment_id })
           });
-          const res = await fetch(`${API_URL}/get-pending-after-payment/${mobile}`);
-          const data = await res.json();
-          setInvoices(data);
+
+          const refreshed = await fetch(`${API_URL}/get-pending-after-payment/${mobile}`);
+          setInvoices(await refreshed.json());
           alert(`✅ Payment Successful! ID: ${response.razorpay_payment_id}`);
         },
         modal: {
@@ -114,25 +113,25 @@ export default function FeesPayment() {
           contact: mobile || "9999999999"
         },
         theme: { color: "#e67e22" }
-      };
+      });
 
-      const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", (response) => {
+      rzp.on("payment.failed", function (response) {
         alert(`❌ Payment Failed! Reason: ${response.error.description}`);
       });
+
       rzp.open();
     } catch (err) {
       alert(`⚠️ Error: ${err.message}`);
     } finally {
-      setIsProcessing(false);
+      setProcessingInvoiceNumber(null);
     }
   };
 
   const pending = invoices.pending_invoices || [];
 
   if (loading) return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 100 }}>
-      <Loader size={32} className="animate-spin" />
+    <div style={{ textAlign: "center", marginTop: 80 }}>
+      <Loader className="animate-spin" />
       <div>Loading invoices...</div>
     </div>
   );
@@ -155,9 +154,15 @@ export default function FeesPayment() {
       </div>
 
       <div style={searchRowStyle}>
-        <input style={searchInputStyle} placeholder="Search" value={mobile} onChange={(e) => setMobile(e.target.value)} />
-        <button style={filterBtnStyle}>☰</button>
-      </div>
+  <input
+    style={searchInputStyle}
+    placeholder="Search"
+    value=""
+    readOnly
+  />
+  <button style={filterBtnStyle}>☰</button>
+</div>
+
 
       {invoices.last_paid_month && (
         <div style={{ marginBottom: 16 }}>Last paid month: <strong>{invoices.last_paid_month}</strong></div>
@@ -176,32 +181,32 @@ export default function FeesPayment() {
         <button style={invoiceBtnStyle}>View &gt;</button>
       </div>
 
-      {pending.length > 0 ? (
-        pending.map((inv) => (
-          <div key={inv.invoice_number} style={invoiceCardStyle}>
-            <div style={rowBetweenStyle}>
-              <span>
-                <span style={amountStyle}>₹ {inv.amount}</span>
-                <span style={inv.status === "paid" ? statusPaidStyle : statusDueStyle}>{inv.status}</span>
-              </span>
-              <button
-                style={isProcessing ? { ...payNowBtnStyle, background: "#aaa" } : payNowBtnStyle}
-                onClick={() => handlePayFees(inv.amount, inv.invoice_number)}
-                disabled={isProcessing}
-              >
-                {isProcessing ? <><Loader size={16} /> Processing...</> : "Pay Now"}
-              </button>
-            </div>
-            <div style={{ color: "#888", fontSize: 14, marginTop: 7 }}>Daycare Fee for {inv.month}</div>
-            {openInvoice === inv.month && (
-              <div style={detailsStyle}>
-                <div>Invoice Number<br /><b>{inv.invoice_number}</b></div>
-                <div style={{ marginTop: 4 }}>Payment Date<br /><b>{inv.payment_date || "Not paid yet"}</b></div>
-              </div>
-            )}
+      {pending.length > 0 ? pending.map(inv => (
+        <div key={inv.invoice_number} style={invoiceCardStyle}>
+          <div style={rowBetweenStyle}>
+            <span>
+              <span style={amountStyle}>₹ {inv.amount}</span>
+              <span style={inv.status === "paid" ? statusPaidStyle : statusDueStyle}>{inv.status}</span>
+            </span>
+            <button
+              style={processingInvoiceNumber === inv.invoice_number ? { ...payNowBtnStyle, background: "#aaa" } : payNowBtnStyle}
+              onClick={() => handlePayFees(inv.amount, inv.invoice_number)}
+              disabled={processingInvoiceNumber === inv.invoice_number}
+            >
+              {processingInvoiceNumber === inv.invoice_number ? <><Loader size={14} /> Processing...</> : "Pay Now"}
+            </button>
           </div>
-        ))
-      ) : (
+          <div style={{ color: "#888", fontSize: 14, marginTop: 7 }}>
+            Daycare Fee for {inv.month}
+          </div>
+          {openInvoice === inv.month && (
+            <div style={detailsStyle}>
+              <div>Invoice Number<br /><b>{inv.invoice_number}</b></div>
+              <div style={{ marginTop: 4 }}>Payment Date<br /><b>{inv.payment_date || "Not paid yet"}</b></div>
+            </div>
+          )}
+        </div>
+      )) : (
         <div style={{ textAlign: "center", padding: 20 }}>No pending payments found</div>
       )}
 

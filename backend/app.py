@@ -132,7 +132,13 @@ def create_order():
             'currency': 'INR',
             'payment_capture': 1
         })
-        return jsonify(order)
+        return jsonify({
+         "order_id": order["id"],
+         "amount": amount,
+         "currency": "INR",
+         "key": os.getenv("RAZORPAY_KEY_ID")  # Send key to frontend
+})
+
     except Exception as e:
         logger.error(f"Error creating order: {str(e)}")
         return jsonify({"error": "Payment processing failed"}), 500
