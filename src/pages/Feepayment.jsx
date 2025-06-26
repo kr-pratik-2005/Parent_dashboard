@@ -71,61 +71,75 @@ export default function FeesPayment() {
   };
 
   const handlePayFees = async (amount, invoiceNumber) => {
-    setProcessingInvoiceNumber(invoiceNumber);
-    try {
-      const orderRes = await fetch(`${API_URL}/create-order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount })
-      });
-      const order = await orderRes.json();
+    console.log("🔍 Sending amount to backend:", amount); 
+  setProcessingInvoiceNumber(invoiceNumber);
+  try {
+    // Send CORRECT amount (₹9500) to backend
+    const orderRes = await fetch(`${API_URL}/create-order`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: amount }) // Send full amount (9500)
+    });
+    const order = await orderRes.json();
 
-      if (!razorpayScriptLoaded.current) {
-        const loaded = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
-        if (!loaded) throw new Error("Failed to load Razorpay");
-        razorpayScriptLoaded.current = true;
-      }
-
-      const rzp = new window.Razorpay({
-        key: razorpayKey,
-        amount: order.amount,
-        currency: order.currency,
-        name: "Mimansa School",
-        description: "Fee Payment",
-        order_id: order.id,
-        handler: async function (response) {
-          await fetch(`${API_URL}/update-payment-status`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ invoice_number: invoiceNumber, payment_id: response.razorpay_payment_id })
-          });
-
-          const refreshed = await fetch(`${API_URL}/get-pending-after-payment/${mobile}`);
-          setInvoices(await refreshed.json());
-          alert(`✅ Payment Successful! ID: ${response.razorpay_payment_id}`);
-        },
-        modal: {
-          ondismiss: () => alert("Payment cancelled"),
-        },
-        prefill: {
-          name: "Parent Name",
-          email: "parent@example.com",
-          contact: mobile || "9999999999"
-        },
-        theme: { color: "#e67e22" }
-      });
-
-      rzp.on("payment.failed", function (response) {
-        alert(`❌ Payment Failed! Reason: ${response.error.description}`);
-      });
-
-      rzp.open();
-    } catch (err) {
-      alert(`⚠️ Error: ${err.message}`);
-    } finally {
-      setProcessingInvoiceNumber(null);
+    if (!razorpayScriptLoaded.current) {
+      const loaded = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
+      if (!loaded) throw new Error("Failed to load Razorpay");
+      razorpayScriptLoaded.current = true;
     }
-  };
+    console.log("Razorpay init config:", {
+  key: razorpayKey,
+  amount: order.amount,
+  currency: order.currency,
+  order_id: order.id
+});
+
+
+    const rzp = new window.Razorpay({
+      key: order.key,
+      amount: order.amount, // Already in paise (backend multiplied by 100)
+      currency: order.currency,
+      name: "Mimansa School",
+      description: "Fee Payment",
+      order_id: order.order_id,
+      handler: async function (response) {
+        await fetch(`${API_URL}/update-payment-status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            invoice_number: invoiceNumber, 
+            payment_id: response.razorpay_payment_id 
+          })
+        });
+
+        const refreshed = await fetch(`${API_URL}/get-pending-after-payment/${mobile}`);
+        setInvoices(await refreshed.json());
+        alert(`✅ Payment Successful! ID: ${response.razorpay_payment_id}`);
+      },
+      modal: {
+        ondismiss: () => alert("Payment cancelled"),
+      },
+      prefill: {
+        name: "Parent Name",
+        email: "parent@example.com",
+        contact: mobile || "9999999999"
+      },
+      theme: { color: "#e67e22" }
+    });
+
+    rzp.on("payment.failed", function (response) {
+      alert(`❌ Payment Failed! Reason: ${response.error.description}`);
+    });
+
+    rzp.open();
+  } catch (err) {
+    alert(`⚠️ Error: ${err.message}`);
+    console.error("Payment error:", err); // Add detailed logging
+  } finally {
+    setProcessingInvoiceNumber(null);
+  }
+};
+
 
   const pending = invoices.pending_invoices || [];
 
