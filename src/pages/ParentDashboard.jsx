@@ -1,15 +1,103 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import giraffeIcon from '../assets/Logo.png';
 import { useNavigate } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
+import { getAuth } from 'firebase/auth';
 
 const ParentDashboard = () => {
   const navigate = useNavigate();
+  const [unpaidMonths, setUnpaidMonths] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [parentName, setParentName] = useState('Parent');
+  const auth = getAuth();
+  const [studentIds, setStudentIds] = useState([]);
 
-  // Today's date in "Month Day, Year" format
+  useEffect(() => {
+    const storedIds = localStorage.getItem('studentIds');
+    if (storedIds) {
+      setStudentIds(JSON.parse(storedIds));
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchParentName = async () => {
+      const user = auth.currentUser;
+      if (user && user.phoneNumber) {
+        try {
+          const response = await fetch('http://localhost:5000/get_parent_name', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phoneNumber: user.phoneNumber })
+          });
+          const data = await response.json();
+          if (data.name) setParentName(data.name);
+        } catch (error) {
+          console.error('Error fetching parent name:', error);
+        }
+      }
+    };
+    fetchParentName();
+  }, []);
+
+  useEffect(() => {
+    const fetchUnpaidMonths = async () => {
+      try {
+        const mobile = localStorage.getItem('parentMobile');
+        if (!mobile) {
+          console.error('Mobile number not found');
+          setLoading(false);
+          return;
+        }
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/unpaid-months/${mobile}`);
+        if (response.ok) {
+          const data = await response.json();
+          setUnpaidMonths(data.unpaidMonths || []);
+        } else {
+          console.error('Failed to fetch unpaid months');
+        }
+      } catch (error) {
+        console.error('Error fetching unpaid months:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUnpaidMonths();
+  }, []);
+
   const todayStr = new Date().toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric'
   });
+
+  const formatUnpaidMonths = () => {
+    if (unpaidMonths.length === 0) {
+      const now = new Date();
+      const month = now.toLocaleString('default', { month: 'long' });
+      const year = now.getFullYear();
+      return `You have cleared all the fees, as of ${month} ${year}`;
+    }
+    if (unpaidMonths.length === 1) {
+      return `Due for ${unpaidMonths[0]} month fee is pending`;
+    } else if (unpaidMonths.length === 2) {
+      return `Due for ${unpaidMonths[0]} and ${unpaidMonths[1]} months fees are pending`;
+    } else {
+      const lastMonth = unpaidMonths[unpaidMonths.length - 1];
+      const otherMonths = unpaidMonths.slice(0, -1).join(', ');
+      return `Due for ${otherMonths}, and ${lastMonth} months fees are pending`;
+    }
+  };
+
+  const handleDailyReportClick = () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const formattedDate = yesterday.toISOString().split('T')[0];
+
+    if (studentIds.length > 0) {
+      const studentId = studentIds[0];
+      navigate(`/daily-report/${studentId}?date=${formattedDate}`);
+    } else {
+      alert('No student linked to this account.');
+    }
+  };
 
   return (
     <>
@@ -50,7 +138,7 @@ const ParentDashboard = () => {
               fontSize: 24
             }}>👶</div>
             <span style={{ color: '#333', fontWeight: 500, fontSize: 16 }}>
-              Hi Hema, Welcome!
+              Hi {parentName}, Welcome!
             </span>
           </div>
           <h2 style={{
@@ -119,60 +207,72 @@ const ParentDashboard = () => {
           />
         </div>
 
-        {/* Notice */}
-        <div style={{
-          color: '#666',
-          margin: '0 20px 18px 20px',
-          fontSize: 14
-        }}>
-          • Due for May month fee is pending{' '}
-          <a
-            href="https://your-payment-link.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              color: '#007bff',
-              textDecoration: 'underline',
-              fontWeight: 600
-            }}
-          >
-            Pay now
-          </a>
-        </div>
+        {/* Fee Notice */}
+        {!loading && unpaidMonths.length > 0 && (
+          <div style={{
+            color: '#666',
+            margin: '0 20px 18px 20px',
+            fontSize: 14
+          }}>
+            • {formatUnpaidMonths()}{' '}
+            <button
+              onClick={() => navigate('/feepayment')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#007bff',
+                textDecoration: 'underline',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: 14
+              }}
+            >
+              Pay now
+            </button>
+          </div>
+        )}
 
-        {/* Action Buttons Grid */}
+        {loading && (
+          <div style={{
+            color: '#666',
+            margin: '0 20px 18px 20px',
+            fontSize: 14
+          }}>
+            • Loading payment status...
+          </div>
+        )}
+
+        {!loading && unpaidMonths.length === 0 && (
+          <div style={{
+            color: '#4CAF50',
+            margin: '0 20px 18px 20px',
+            fontSize: 14
+          }}>
+            ✅ All fees are up to date!
+          </div>
+        )}
+
+        {/* Main Grid */}
         <div className="action-grid" style={{
           display: 'grid',
           gap: 14,
           margin: '0 20px 20px 20px'
         }}>
-          <button
-            style={actionBtnStyle}
-            onClick={() => navigate('/daily-report')}
-          >
+          <button style={actionBtnStyle} onClick={handleDailyReportClick}>
             Daily<br />Report
           </button>
-          <button
-            style={actionBtnStyle}
-            onClick={() => navigate('/cctv')}
-          >
+          <button style={actionBtnStyle} onClick={() => navigate('/cctv')}>
             CCTV
           </button>
-          <button
-            style={actionBtnStyle}
-            onClick={() => navigate('/fees')}
-          >
+          <button style={actionBtnStyle} onClick={() => navigate('/feepayment')}>
             Fees
           </button>
-          <button
-            style={actionBtnStyle}
-            onClick={() => navigate('/leaveform')}
-          >
+          <button style={actionBtnStyle} onClick={() => navigate('/leaveform')}>
             Leave<br />Request
           </button>
         </div>
 
-        {/* Reports Button */}
+        {/* Reports */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
           <button
             className="reports-btn"
@@ -180,7 +280,7 @@ const ParentDashboard = () => {
               ...actionBtnStyle,
               width: '60%',
               maxWidth: 220,
-              padding: '18px 0',
+              padding: '28px 0',
               fontWeight: 600
             }}
             onClick={() => navigate('/reports')}
@@ -189,7 +289,6 @@ const ParentDashboard = () => {
           </button>
         </div>
       </div>
-      {/* Bottom Navigation (always visible) */}
       <BottomNav />
     </>
   );

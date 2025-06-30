@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
 import { 
   ChevronLeft, 
   Bell, 
@@ -12,7 +12,31 @@ const MobileProfileUI = () => {
   const navigate = useNavigate();
   const auth = getAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-
+    const [parentName, setParentName] = useState('Parent');
+    
+    useEffect(() => {
+      const fetchParentName = async () => {
+        const user = auth.currentUser;
+        console.log('User phone number:', user?.phoneNumber);
+        if (user && user.phoneNumber) {
+          try {
+            const response = await fetch('http://localhost:5000/get_parent_name', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ phoneNumber: user.phoneNumber })
+            });
+            
+            const data = await response.json();
+            console.log('API Response:', data);
+            if (data.name) setParentName(data.name);
+          } catch (error) {
+            console.error('Error fetching parent name:', error);
+          }
+        }
+      };
+  
+      fetchParentName();
+    },[]);
   // Logout handler (using Firebase)
   const handleLogout = async () => {
     setShowLogoutConfirm(false);
@@ -108,7 +132,7 @@ const MobileProfileUI = () => {
           color: '#666',
           margin: '0'
         }}>
-          Welcome Hema!
+          Welcome {parentName}!
         </h2>
       </div>
 

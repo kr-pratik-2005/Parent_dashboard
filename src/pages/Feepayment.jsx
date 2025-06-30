@@ -22,6 +22,7 @@ const payNowBtnStyle = { background: "#27ae60", color: "#fff", border: "none", p
 const detailsStyle = { background: "#f8f8f8", borderRadius: 7, padding: 10, marginTop: 10, fontSize: 15 };
 const filterBtnStyle = { padding: "8px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" };
 const searchInputStyle = { flex: 1, padding: 8, borderRadius: 8, border: "1px solid #ddd" };
+
 function loadRazorpayScript(src) {
   return new Promise((resolve) => {
     if (window.Razorpay) return resolve(true);
@@ -81,6 +82,7 @@ export default function FeesPayment() {
       body: JSON.stringify({ amount: amount }) // Send full amount (9500)
     });
     const order = await orderRes.json();
+    console.log("📦 Order response from backend:", order);
 
     if (!razorpayScriptLoaded.current) {
       const loaded = await loadRazorpayScript("https://checkout.razorpay.com/v1/checkout.js");
@@ -91,9 +93,12 @@ export default function FeesPayment() {
   key: razorpayKey,
   amount: order.amount,
   currency: order.currency,
-  order_id: order.id
+  order_id: order.order_id,
+
 });
 
+const storedMobile = localStorage.getItem('parentMobile');
+const contact = storedMobile || "";
 
     const rzp = new window.Razorpay({
       key: order.key,
@@ -112,7 +117,7 @@ export default function FeesPayment() {
           })
         });
 
-        const refreshed = await fetch(`${API_URL}/get-pending-after-payment/${mobile}`);
+        const refreshed = await fetch(`${API_URL}/get-pending-after-payment/${storedMobile}`);
         setInvoices(await refreshed.json());
         alert(`✅ Payment Successful! ID: ${response.razorpay_payment_id}`);
       },
@@ -122,7 +127,7 @@ export default function FeesPayment() {
       prefill: {
         name: "Parent Name",
         email: "parent@example.com",
-        contact: mobile || "9999999999"
+        contact: contact 
       },
       theme: { color: "#e67e22" }
     });

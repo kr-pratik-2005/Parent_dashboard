@@ -87,15 +87,19 @@ export default function FeePaymentPendingPayment() {
         alert("Razorpay payment system failed to load");
         return;
       }
+      const storedMobile = localStorage.getItem('parentMobile');
+const contact = storedMobile || "";
 
+console.log("Contact being sent to Razorpay:", contact); // <--- ADD THIS LINE
       // Configure payment options
       const options = {
-        key: "rzp_test_ofNPcpgm5CLqie", // Replace with your Razorpay Key ID
+        key: order.key, // Replace with your Razorpay Key ID
         amount: order.amount,
         currency: order.currency,
         name: "Your School Name",
         description: "Fee Payment",
-        order_id: order.id,
+        order_id: order.order_id,
+
         handler: async function (response) {
           // Update payment status in backend
           await fetch('http://localhost:5000/update-payment-status', {
@@ -121,10 +125,15 @@ export default function FeePaymentPendingPayment() {
         prefill: {
           name: "Parent Name",
           email: "parent@example.com",
-          contact: localStorage.getItem('parentMobile') || "9999999999"
+          contact: contact
         },
         theme: { color: "#e67e22" }
       };
+      console.log("parentMobile in localStorage:", 
+      localStorage.getItem('parentMobile'));
+      console.log("🧾 Razorpay Options:", options);
+      console.log("🪟 Opening Razorpay window now...");
+
       const rzp = new window.Razorpay(options);
       rzp.on('payment.failed', function (response) {
         alert(`❌ Payment Failed! Reason: ${response.error.description}`);

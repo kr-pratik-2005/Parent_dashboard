@@ -28,29 +28,38 @@ export default function Login2() {
   };
 
   const handleProceed = async () => {
-    const otpString = otp.join('');
-    if (otpString.length !== 6) {
-      setError('Please enter complete 6-digit OTP');
-      return;
-    }
-    setError('');
-    try {
-      const result = await window.confirmationResult.confirm(otpString);
-      // User successfully signed in
-      
-      // Store mobile number in localStorage for invoice lookup
-      const mobile = sessionStorage.getItem('phoneNumber'); // e.g. '+911234567890'
-      const cleanMobile = mobile.replace('+91', '');
-      localStorage.setItem('parentMobile', cleanMobile);
+  const otpString = otp.join('');
+  if (otpString.length !== 6) {
+    setError('Please enter complete 6-digit OTP');
+    return;
+  }
+  setError('');
+  try {
+    const result = await window.confirmationResult.confirm(otpString);
 
-      // Redirect to parent dashboard or fee payment page
+    const mobile = sessionStorage.getItem('phoneNumber'); // e.g. '+911234567890'
+    const cleanMobile = mobile.replace('+91', '');
+    localStorage.setItem('parentMobile', cleanMobile);
+
+    // 🔥 NEW: Fetch students linked to this parent
+    const res = await fetch(`http://localhost:5000/get-students-by-contact/${cleanMobile}`);
+    const students = await res.json();
+
+    if (Array.isArray(students) && students.length > 0) {
+      const studentIds = students.map(s => s.student_id);
+      localStorage.setItem('studentIds', JSON.stringify(studentIds));
       navigate('/parent-dashboard');
-    } catch (err) {
-      setError('Invalid OTP. Please try again.');
-      setOtp(['', '', '', '', '', '']);
-      inputRefs.current[0]?.focus();
+    } else {
+      alert('No student linked to this account.');
     }
-  };
+
+  } catch (err) {
+    setError('Invalid OTP. Please try again.');
+    setOtp(['', '', '', '', '', '']);
+    inputRefs.current[0]?.focus();
+  }
+};
+
 
   const handleResendOtp = () => {
     setOtp(['', '', '', '', '', '']);

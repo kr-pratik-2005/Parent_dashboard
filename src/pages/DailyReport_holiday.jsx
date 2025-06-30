@@ -1,95 +1,38 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
-// Helper function to generate days array (5-day window)
+// ---- COMPONENT ----
 function generateDaysArray(selectedDate) {
   const daysArr = [];
   for (let i = 4; i >=0; i--) {
     const d = new Date(selectedDate);
-    d.setDate(d.getDate() + i);
+    d.setDate(d.getDate() - i);
     daysArr.push({
       num: d.toLocaleDateString("en-US", { day: "2-digit" }),
       day: d.toLocaleDateString("en-US", { weekday: "short" }),
-      date: new Date(d),
       active: i === 0
     });
   }
   return daysArr;
 }
 
-// Helper to parse local date from YYYY-MM-DD string
-const parseLocalDate = (dateStr) => {
-  if (!dateStr) return new Date();
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day);
-};
-
-// Helper to format date as DD/MM/YYYY
-const formatDateDDMMYYYY = (date) => {
-  return date.toLocaleDateString("en-GB");
-};
-
-export default function RithikReport() {
-  const navigate = useNavigate();
-  const { studentId } = useParams();
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const dateParam = queryParams.get("date");
-
-  // Initialize state
-  const [selectedDate, setSelectedDate] = useState(parseLocalDate(dateParam));
+export default function RithikReportHoliday() {  
+const [selectedDate, setSelectedDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [days, setDays] = useState(generateDaysArray(parseLocalDate(dateParam)));
-  const [report, setReport] = useState(null);
+  const [days, setDays] = useState(generateDaysArray(new Date()));
+  const navigate = useNavigate();
 
-  // Fetch report data when date/student changes
-  useEffect(() => {
-    const fetchReport = async () => {
-      const formatted = selectedDate.toISOString().split('T')[0];
-      const res = await fetch(`http://localhost:5000/get-attendance-report/${studentId}?date=${formatted}`);
-      const data = await res.json();
-      setReport(data);
-    };
-    fetchReport();
-  }, [selectedDate, studentId]);
-
-  // Update date when URL param changes
-  useEffect(() => {
-    const updatedDate = parseLocalDate(dateParam);
-    setSelectedDate(updatedDate);
-    setDays(generateDaysArray(updatedDate));
-  }, [dateParam]);
-
-  // Update URL when date changes
-  const updateURLWithDate = (newDate) => {
-    const formatted = newDate.toISOString().split("T")[0];
-    navigate(`/daily-report/${studentId}?date=${formatted}`, { replace: true });
-  };
-
-  // Date picker handler
+  const handleCalendarClick = () => setShowDatePicker(true);
   const handleDateChange = (date) => {
-    setSelectedDate(date);
+    
     setShowDatePicker(false);
     setDays(generateDaysArray(date));
-    updateURLWithDate(date);
   };
-
-  // Day navigation click handler
-  const handleDayClick = (index) => {
-    const newDate = days[index].date;
-    setSelectedDate(newDate);
-    const updatedDays = days.map((d, i) => ({ ...d, active: i === index }));
-    setDays(updatedDays);
-    updateURLWithDate(newDate);
+  const handleBackClick = () => {
+    navigate("/parent-dashboard");
   };
-
-  // Back button handler
-  const handleBackClick = () => navigate("/parent-dashboard");
-
-  // Destructure report data with defaults
-  const { time_in = "--", time_out = "--" } = report || {};
 
   return (
     <div style={{
@@ -113,8 +56,6 @@ export default function RithikReport() {
           .rr-day-btn, .rr-day-btn-active { min-width: 40px !important; font-size: 13px !important; padding: 8px 4px !important; }
           .rr-report-card { margin: 0 8px !important; padding: 18px 8px !important; min-height: 240px !important; }
           .rr-report-title { font-size: 16px !important; margin-bottom: 22px !important; }
-          .rr-time-label { font-size: 14px !important; }
-          .rr-time-btn { font-size: 15px !important; padding: 12px 8px !important; }
         }
         @media (min-width: 601px) {
           .rr-container { max-width: 420px; margin: 0 auto; padding: 0 0 60px 0; }
@@ -126,8 +67,6 @@ export default function RithikReport() {
           .rr-day-btn, .rr-day-btn-active { min-width: 50px !important; font-size: 14px !important; padding: 12px 8px !important; }
           .rr-report-card { margin: 0 20px !important; padding: 30px 24px !important; min-height: 400px !important; }
           .rr-report-title { font-size: 18px !important; margin-bottom: 40px !important; }
-          .rr-time-label { font-size: 16px !important; }
-          .rr-time-btn { font-size: 16px !important; padding: 16px 24px !important; }
         }
       `}</style>
 
@@ -165,11 +104,20 @@ export default function RithikReport() {
               width: 60,
               height: 60,
               borderRadius: '50%',
-              backgroundImage: 'url("https://via.placeholder.com/60")',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
+              backgroundImage: 'linear-gradient(45deg, #ff6b35, #f7931e, #4CAF50)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               marginBottom: 10,
-            }} />
+              position: 'relative'
+            }}>
+              <div style={{
+                width: 30,
+                height: 30,
+                backgroundColor: '#fff',
+                borderRadius: '50%'
+              }} />
+            </div>
             <h1 className="rr-title" style={{
               fontWeight: 500,
               color: '#333',
@@ -184,10 +132,10 @@ export default function RithikReport() {
         {/* Date Badge */}
         <div style={{
           display: "flex",
-          justifyContent: "center",
+          justifyContent: "flex-end",
           alignItems: "center",
           width: "100%",
-          margin: '20px 0'
+          marginBottom: '20px'
         }}>
           <div
             className="rr-badge"
@@ -200,16 +148,17 @@ export default function RithikReport() {
               boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
               cursor: 'pointer'
             }}
-            onClick={() => setShowDatePicker(true)}
+            onClick={handleCalendarClick}
             role="button"
             tabIndex={0}
           >
-            📅 {formatDateDDMMYYYY(selectedDate)}
+            📅 {selectedDate.toLocaleDateString()}
           </div>
           {showDatePicker && (
             <div style={{
               position: 'absolute',
               top: 110,
+              right: 20,
               zIndex: 100
             }}>
               <DatePicker
@@ -249,7 +198,6 @@ export default function RithikReport() {
                 cursor: 'pointer',
                 boxShadow: '0 2px 4px rgba(0,0,0,0.09)'
               }}
-              onClick={() => handleDayClick(index)}
             >
               <span style={{
                 fontSize: '16px',
@@ -264,13 +212,17 @@ export default function RithikReport() {
           ))}
         </div>
 
-        {/* Report Card */}
+        {/* School Holiday Card */}
         <div className="rr-report-card" style={{
           backgroundColor: '#e5e7eb',
           borderRadius: '20px',
           padding: '30px 24px',
           minHeight: '320px',
-          position: 'relative'
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center'
         }}>
           <h2 className="rr-report-title" style={{
             textAlign: 'center',
@@ -279,49 +231,37 @@ export default function RithikReport() {
             color: '#4b5563',
             marginBottom: '32px'
           }}>
-            Detailed Report
+            School Holiday
           </h2>
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '18px',
-            marginBottom: '40px'
+            textAlign: 'center',
+            fontSize: '16px',
+            color: '#666',
+            lineHeight: '1.6',
+            marginBottom: '32px'
           }}>
-            <div style={{ textAlign: 'center' }}>
-              <div className="rr-time-label" style={{
-                fontSize: '16px',
-                color: '#6b7280',
-                marginBottom: '12px'
-              }}>In</div>
-              <div className="rr-time-btn" style={{
-                backgroundColor: '#fff',
-                padding: '16px 24px',
-                borderRadius: '25px',
-                fontSize: '16px',
-                fontWeight: '500',
-                color: '#333',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
-                width: '100%'
-              }}>{time_in}</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div className="rr-time-label" style={{
-                fontSize: '16px',
-                color: '#6b7280',
-                marginBottom: '12px'
-              }}>Out</div>
-              <div className="rr-time-btn" style={{
-                backgroundColor: '#fff',
-                padding: '16px 24px',
-                borderRadius: '25px',
-                fontSize: '16px',
-                fontWeight: '500',
-                color: '#333',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
-                width: '100%'
-              }}>{time_out}</div>
-            </div>
+            The school was closed for a holiday on the selected date.<br />
+            No report data is available.
           </div>
+          <button
+            style={{
+              display: 'block',
+              margin: '0 auto',
+              padding: '12px 32px',
+              backgroundColor: '#432623',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '24px',
+              fontWeight: '600',
+              fontSize: '15px',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              transition: 'background-color 0.2s'
+            }}
+            onClick={handleCalendarClick}
+          >
+            Select Another Date
+          </button>
         </div>
       </div>
     </div>

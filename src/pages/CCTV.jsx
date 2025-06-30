@@ -261,8 +261,8 @@ export default function CCTV() {
           gap: 8,
         }}>
           Class Room
-        <Link
-  to="/live"
+       <a
+  href="https://stream.mimansakids.com/"
   style={{
     background: "#38d39f",
     color: "#fff",
@@ -271,11 +271,15 @@ export default function CCTV() {
     borderRadius: 8,
     padding: "2px 8px",
     marginLeft: 8,
-    textDecoration: "none"
+    textDecoration: "none",
+    cursor: "pointer"
   }}
+  target="_self" // opens in the same tab
+  rel="noopener"
 >
   Live
-</Link>
+</a>
+
         </div>
         {/* Top right: Refresh */}
         <div style={{
@@ -367,22 +371,24 @@ export default function CCTV() {
   </span>
 
   {/* Play/Pause */}
-  <button
-    onClick={handlePlayPause}
-    style={{
-      background: "none",
-      border: "none",
-      color: "#fff",
-      cursor: "pointer",
-      padding: 8,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      marginLeft: 10
-    }}
-  >
-    {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-  </button>
+<button
+  onClick={() => window.open("https://stream.mimansakids.com/", "_blank")}
+  style={{
+    background: "none",
+    border: "none",
+    color: "#fff",
+    cursor: "pointer",
+    padding: 8,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 10
+  }}
+  title="Go to Live Stream"
+>
+  {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+</button>
+
 
   {/* Fullscreen */}
   <button
