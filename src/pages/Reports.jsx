@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "../components/BottomNav";
+import { getAuth } from "firebase/auth";
 
 // Example SVG icons (replace with your icon library if needed)
 const BackIcon = () => (
@@ -27,18 +28,44 @@ const FilterIcon = () => (
   </svg>
 );
 
-
-
-
-
 const reportList = [
-  "Attendance Report",
-  "Learning Milestone",
-  "Annual Report"
+  { title: "Attendance Report", key: "attendance" },
+  { title: "Learning Milestone", key: "milestone" },
+  { title: "Annual Report", key: "annual" }
 ];
 
 const Reports = () => {
   const navigate = useNavigate();
+  const [students, setStudents] = useState([]);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+
+  // Fetch students for this parent
+  useEffect(() => {
+    const fetchStudents = async () => {
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user || !user.phoneNumber) return;
+      let phone = user.phoneNumber;
+      if (phone.startsWith("+91")) phone = phone.slice(3);
+      else if (phone.startsWith("+")) phone = phone.slice(1);
+
+      const res = await fetch(`http://localhost:5000/get-students-by-contact/${phone}`);
+      const data = await res.json();
+      setStudents(data);
+      // Optionally auto-select first student if only one
+      if (data.length === 1) setSelectedStudentId(data[0].student_id);
+    };
+    fetchStudents();
+  }, []);
+
+  // Handler for Attendance Report click
+  const handleAttendanceReportClick = () => {
+    if (!selectedStudentId) {
+      alert("Please select a child.");
+      return;
+    }
+    navigate(`/attendance-report/${selectedStudentId}`);
+  };
 
   return (
     <div style={styles.bg}>
@@ -88,20 +115,53 @@ const Reports = () => {
         </button>
       </div>
 
+      {/* Student selection dropdown */}
+      <div style={{ margin: "16px 18px" }}>
+        <select
+          value={selectedStudentId}
+          onChange={e => setSelectedStudentId(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "10px",
+            borderRadius: "10px",
+            border: "1px solid #ccc",
+            fontSize: 16,
+            marginBottom: 18
+          }}
+          required
+        >
+          <option value="">Select child</option>
+          {students.map(stu => (
+            <option key={stu.student_id} value={stu.student_id}>
+              {stu.name} ({stu.grade})
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Report Cards */}
       <div className="report-cards" style={styles.cardsWrap}>
-        {reportList.map((title) => (
-          <button key={title} className="report-card-btn" style={styles.cardBtn}>
-            <span>{title}</span>
-            <span style={styles.cardArrow}>&#8250;</span>
-          </button>
-        ))}
+        <button
+          className="report-card-btn"
+          style={styles.cardBtn}
+          onClick={handleAttendanceReportClick}
+        >
+          <span>Attendance Report</span>
+          <span style={styles.cardArrow}>&#8250;</span>
+        </button>
+        <button className="report-card-btn" style={styles.cardBtn}>
+          <span>Learning Milestone</span>
+          <span style={styles.cardArrow}>&#8250;</span>
+        </button>
+        <button className="report-card-btn" style={styles.cardBtn}>
+          <span>Annual Report</span>
+          <span style={styles.cardArrow}>&#8250;</span>
+        </button>
       </div>
 
       {/* Bottom Navigation */}
-   <BottomNav />
+      <BottomNav />
     </div>
-    
   );
 };
 

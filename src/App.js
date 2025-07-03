@@ -7,17 +7,20 @@ import ParentDashboard from './pages/ParentDashboard';
 import Childreport from './pages/Childreport';
 import { auth } from './firebase/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-
+import AttendanceReport from './pages/AttendanceReport';
 import Report from './pages/Report';
-import DailyReportContainer from './pages/DailyReportContainer'; // ✅ dynamic report loader
+import ParentProfile from './pages/ParentProfile';
 import Feepayment from './pages/Feepayment';
 import FeePaymentPendingPayment from './pages/feepyament_pendingpayment';
 import CCTV from './pages/CCTV';
 import Profile from './pages/Profile';
 import Leaveform from './pages/Leaveform';
 import Reports from './pages/Reports';
-import ParentDailyReports from './pages/ParentDailyReports'; // ✅ renamed route
-import DailyReportRouter from './pages/DailyReportRouter';
+import DailyReport from './pages/DailyReport';
+import ChildProfile from './pages/ChildProfile';
+
+import PaymentSuccess from './pages/PaymentSuccess';
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -55,12 +58,17 @@ function App() {
           path="/report" 
           element={user ? <Report /> : <Navigate to="/login" />} 
         />
-
-        {/* ✅ Dynamic Daily Report based on attendance */}
         <Route 
-          path="/daily-report/:childId" 
-          element={user ? <DailyReportContainer /> : <Navigate to="/login" />} 
-        />
+  path="/daily-report/:studentId" 
+  element={user ? <DailyReport /> : <Navigate to="/login" />} 
+/>
+
+<Route
+  path="/attendance-report/:studentId"
+  element={user ? <AttendanceReport /> : <Navigate to="/login" />}
+/>
+       <Route path="/child-profile" element={<ChildProfile />} />
+
 
         <Route 
           path="/child-report" 
@@ -71,17 +79,23 @@ function App() {
           path="/feepayment" 
           element={user ? <Feepayment /> : <Navigate to="/login" />} 
         />
+        <Route path="/payment-success" element={<PaymentSuccess />} />
+
 
         <Route 
           path="/feepayment/pending" 
           element={user ? <FeePaymentPendingPayment /> : <Navigate to="/login" />} 
         />
+        <Route
+  path="/parent-profile"
+  element={user ? <ParentProfile /> : <Navigate to="/login" />}
+/>
 
         <Route 
           path="/cctv" 
           element={user ? <CCTV /> : <Navigate to="/login" />} 
         />
-        <Route path="/daily-report/:studentId" element={<DailyReportRouter />} />
+        
         <Route 
           path="/profile" 
           element={user ? <Profile /> : <Navigate to="/login" />} 
@@ -102,11 +116,7 @@ function App() {
           element={user ? <Reports /> : <Navigate to="/login" />} 
         />
 
-        {/* ✅ Optional: summary/overview reports */}
-        <Route 
-          path="/daily-report-overview" 
-          element={user ? <ParentDailyReports /> : <Navigate to="/login" />} 
-        />
+       
       </Routes>
 
       <div id="recaptcha-container"></div>

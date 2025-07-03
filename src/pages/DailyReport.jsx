@@ -4,16 +4,25 @@ import "react-datepicker/dist/react-datepicker.css";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 
 // Helper function to generate days array (5-day window)
+// Helper to format date to YYYY-MM-DD in local time
+const formatDateToYYYYMMDD = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 function generateDaysArray(selectedDate) {
   const daysArr = [];
-  for (let i = 4; i >=0; i--) {
+  for (let i = 4; i >= 0; i--) {
     const d = new Date(selectedDate);
-    d.setDate(d.getDate() + i);
+    d.setDate(d.getDate() - i);
     daysArr.push({
       num: d.toLocaleDateString("en-US", { day: "2-digit" }),
       day: d.toLocaleDateString("en-US", { weekday: "short" }),
       date: new Date(d),
-      active: i === 0
+      active: d.toDateString() === selectedDate.toDateString()  // ✅ FIXED
+
     });
   }
   return daysArr;
@@ -38,16 +47,23 @@ export default function RithikReport() {
   const queryParams = new URLSearchParams(location.search);
   const dateParam = queryParams.get("date");
 
-  // Initialize state
-  const [selectedDate, setSelectedDate] = useState(parseLocalDate(dateParam));
+  // Default to current day if no date param
+  const getDefaultDate = () => {
+    if (dateParam) return parseLocalDate(dateParam);
+    return new Date();
+  };
+
+  const [selectedDate, setSelectedDate] = useState(getDefaultDate());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [days, setDays] = useState(generateDaysArray(parseLocalDate(dateParam)));
+  const [days, setDays] = useState(generateDaysArray(getDefaultDate()));
   const [report, setReport] = useState(null);
 
   // Fetch report data when date/student changes
   useEffect(() => {
     const fetchReport = async () => {
-      const formatted = selectedDate.toISOString().split('T')[0];
+      const formatted = formatDateToYYYYMMDD(selectedDate);  // ✅ FIXED
+      console.log("Fetching report for:", formatted);
+
       const res = await fetch(`http://localhost:5000/get-attendance-report/${studentId}?date=${formatted}`);
       const data = await res.json();
       setReport(data);
@@ -57,14 +73,15 @@ export default function RithikReport() {
 
   // Update date when URL param changes
   useEffect(() => {
-    const updatedDate = parseLocalDate(dateParam);
+    const updatedDate = dateParam ? parseLocalDate(dateParam) : getDefaultDate();
     setSelectedDate(updatedDate);
     setDays(generateDaysArray(updatedDate));
   }, [dateParam]);
 
   // Update URL when date changes
   const updateURLWithDate = (newDate) => {
-    const formatted = newDate.toISOString().split("T")[0];
+   const formatted = formatDateToYYYYMMDD(newDate);  // ✅ FIXED
+
     navigate(`/daily-report/${studentId}?date=${formatted}`, { replace: true });
   };
 
@@ -89,7 +106,167 @@ export default function RithikReport() {
   const handleBackClick = () => navigate("/parent-dashboard");
 
   // Destructure report data with defaults
+  const status = report?.status;
   const { time_in = "--", time_out = "--" } = report || {};
+
+  // UI rendering based on status
+  let reportContent = null;
+  if (status === "present") {
+    reportContent = (
+      <>
+        <h2 className="rr-report-title" style={{
+          textAlign: 'center',
+          fontSize: '18px',
+          fontWeight: '500',
+          color: '#4b5563',
+          marginBottom: '32px'
+        }}>
+          Detailed Report
+        </h2>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '18px',
+          marginBottom: '40px'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div className="rr-time-label" style={{
+              fontSize: '16px',
+              color: '#6b7280',
+              marginBottom: '12px'
+            }}>In</div>
+            <div className="rr-time-btn" style={{
+              backgroundColor: '#fff',
+              padding: '16px 24px',
+              borderRadius: '25px',
+              fontSize: '16px',
+              fontWeight: '500',
+              color: '#333',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+              width: '100%'
+            }}>{time_in}</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div className="rr-time-label" style={{
+              fontSize: '16px',
+              color: '#6b7280',
+              marginBottom: '12px'
+            }}>Out</div>
+            <div className="rr-time-btn" style={{
+              backgroundColor: '#fff',
+              padding: '16px 24px',
+              borderRadius: '25px',
+              fontSize: '16px',
+              fontWeight: '500',
+              color: '#333',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+              width: '100%'
+            }}>{time_out}</div>
+          </div>
+        </div>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginTop: 18
+        }}>
+          <div style={{
+            background: '#FFD600',
+            color: '#333',
+            borderRadius: '50%',
+            width: 48,
+            height: 48,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 700,
+            fontSize: 24,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.12)'
+          }}>A</div>
+        </div>
+      </>
+    );
+  } else if (status === "leave") {
+    reportContent = (
+      <div style={{ textAlign: 'center', marginTop: 60 }}>
+        <div style={{ fontSize: 18, color: '#444', marginBottom: 24 }}>
+          Student on Leave
+        </div>
+        <div style={{ color: '#666', marginBottom: 32 }}>
+          {report?.reason
+            ? `Reason: ${report.reason}`
+            : "Your child was on leave for the selected date."}
+        </div>
+        <button
+          style={{
+            background: '#3b2f2f',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '20px',
+            padding: '12px 28px',
+            fontSize: 15,
+            cursor: 'pointer'
+          }}
+          onClick={() => setShowDatePicker(true)}
+        >
+          Select Another Date
+        </button>
+      </div>
+    );
+  } else if (status === "holiday") {
+    reportContent = (
+      <div style={{ textAlign: 'center', marginTop: 60 }}>
+        <div style={{ fontSize: 18, color: '#444', marginBottom: 24 }}>
+          School Holiday
+        </div>
+        <div style={{ color: '#666', marginBottom: 32 }}>
+          {report?.holiday_name
+            ? `The school was closed for ${report.holiday_name}.`
+            : "The school was closed for a holiday on the selected date."}
+        </div>
+        <button
+          style={{
+            background: '#3b2f2f',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '20px',
+            padding: '12px 28px',
+            fontSize: 15,
+            cursor: 'pointer'
+          }}
+          onClick={() => setShowDatePicker(true)}
+        >
+          Select Another Date
+        </button>
+      </div>
+    );
+  } else {
+    // For absent, missing, or any unknown status
+    reportContent = (
+      <div style={{ textAlign: 'center', marginTop: 60 }}>
+        <div style={{ fontSize: 18, color: '#444', marginBottom: 24 }}>
+          No data available
+        </div>
+        <div style={{ color: '#666', marginBottom: 32 }}>
+          No attendance data is available for the selected date.
+        </div>
+        <button
+          style={{
+            background: '#3b2f2f',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '20px',
+            padding: '12px 28px',
+            fontSize: 15,
+            cursor: 'pointer'
+          }}
+          onClick={() => setShowDatePicker(true)}
+        >
+          Select Another Date
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -272,56 +449,7 @@ export default function RithikReport() {
           minHeight: '320px',
           position: 'relative'
         }}>
-          <h2 className="rr-report-title" style={{
-            textAlign: 'center',
-            fontSize: '18px',
-            fontWeight: '500',
-            color: '#4b5563',
-            marginBottom: '32px'
-          }}>
-            Detailed Report
-          </h2>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '18px',
-            marginBottom: '40px'
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <div className="rr-time-label" style={{
-                fontSize: '16px',
-                color: '#6b7280',
-                marginBottom: '12px'
-              }}>In</div>
-              <div className="rr-time-btn" style={{
-                backgroundColor: '#fff',
-                padding: '16px 24px',
-                borderRadius: '25px',
-                fontSize: '16px',
-                fontWeight: '500',
-                color: '#333',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
-                width: '100%'
-              }}>{time_in}</div>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div className="rr-time-label" style={{
-                fontSize: '16px',
-                color: '#6b7280',
-                marginBottom: '12px'
-              }}>Out</div>
-              <div className="rr-time-btn" style={{
-                backgroundColor: '#fff',
-                padding: '16px 24px',
-                borderRadius: '25px',
-                fontSize: '16px',
-                fontWeight: '500',
-                color: '#333',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
-                width: '100%'
-              }}>{time_out}</div>
-            </div>
-          </div>
+          {reportContent}
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Bell } from "lucide-react";
+import { getAuth } from "firebase/auth";
 
 function RequestSubmittedModal({ open, onClose }) {
   if (!open) return null;
@@ -144,6 +145,8 @@ export default function Leaveform() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownValue, setDropdownValue] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [students, setStudents] = useState([]);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
 
   const dropdownOptions = [
     "Sick",
@@ -151,6 +154,25 @@ export default function Leaveform() {
     "Family Emergency",
     "Others"
   ];
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user || !user.phoneNumber) return;
+
+      let phone = user.phoneNumber;
+      if (phone.startsWith("+91")) phone = phone.slice(3);
+      else if (phone.startsWith("+")) phone = phone.slice(1);
+
+      const res = await fetch(`http://localhost:5000/get-students-by-contact/${phone}`);
+      const data = await res.json();
+      setStudents(data); // data is an array of student objects
+      // If only one student, auto-select
+      if (data.length === 1) setSelectedStudentId(data[0].student_id);
+    };
+    fetchStudents();
+  }, []);
 
   // Automatically update "To" date when "From" date changes
   useEffect(() => {
@@ -160,23 +182,54 @@ export default function Leaveform() {
   }, [futureFrom, futureTo]);
 
   // Handle form submit
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validate dates
+
+    if (!selectedStudentId) {
+      alert("Please select a child.");
+      return;
+    }
+
     if (futureFrom > futureTo) {
       alert("End date cannot be earlier than start date");
       return;
     }
-    
-    setModalOpen(true);
+
+    // Prepare data to send to backend
+    const leaveData = {
+      date_submitted: new Date().toISOString(),
+      today_leave: todayLeave,
+      today_reason: dropdownValue || todayReason,
+      future_from: futureFrom,
+      future_to: futureTo,
+      future_reason: futureReason,
+      student_id: selectedStudentId,
+      status: "pending"
+    };
+
+    try {
+      const res = await fetch("http://localhost:5000/submit-leave-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(leaveData),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setModalOpen(true);
+        // Optionally reset form fields here
+      } else {
+        alert("Error: " + result.error);
+      }
+    } catch (error) {
+      alert("Error submitting leave request: " + error.message);
+    }
   };
 
   // Handle "From" date change
   const handleFromChange = (e) => {
     const newFrom = e.target.value;
     setFutureFrom(newFrom);
-    
+
     // If new "From" date is after current "To" date, update "To" date
     if (newFrom > futureTo) {
       setFutureTo(newFrom);
@@ -301,6 +354,31 @@ export default function Leaveform() {
           </span>
         </div>
 
+        {/* Student selection dropdown */}
+        <div style={{ ...styles.sectionLabel, marginTop: 16 }}>
+          Select Child
+        </div>
+        <select
+          value={selectedStudentId}
+          onChange={e => setSelectedStudentId(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "10px",
+            borderRadius: "10px",
+            border: "1px solid #ccc",
+            fontSize: 16,
+            marginBottom: 18
+          }}
+          required
+        >
+          <option value="">Select child</option>
+          {students.map(stu => (
+            <option key={stu.student_id} value={stu.student_id}>
+              {stu.name} ({stu.grade})
+            </option>
+          ))}
+        </select>
+
         {/* Today's date */}
         <div style={styles.topDateRow}>
           <div className="calendar-wrap" style={{ width: 140 }}>
@@ -416,10 +494,9 @@ export default function Leaveform() {
           placeholder=""
           rows={3}
         />
-        <div style={{ marginTop: 170 }}>
-  <button className="submit-btn" type="submit">Submit</button>
-</div>
-
+        <div style={{ marginTop: 24 }}>
+          <button className="submit-btn" type="submit">Submit</button>
+        </div>
       </form>
     </div>
   );

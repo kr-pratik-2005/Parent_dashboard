@@ -43,7 +43,6 @@ invoices = [
         "payment_id": "",
         "payment_date": None
     },
-    
     # Student 2 invoices
     {
         "student_id": "STU2025002",
@@ -80,7 +79,8 @@ invoices = [
     }
 ]
 
-# Sample student data (3 students)
+# Sample student data (3 students) with parent profile fields
+# Sample student data (3 students) with parent profile fields and additional child info
 students = [
     {
         "student_id": "STU2025001",
@@ -89,7 +89,16 @@ students = [
         "parent_name": "Priya Sharma",
         "contact": "1234567890",
         "email": "priya@example.com",
-        "joined_date": datetime(2023, 6, 1)
+        "joined_date": datetime(2023, 6, 1),
+        "father_name": "Rahul Sharma",
+        "father_contact": "1234567890",
+        "mother_name": "Priya Sharma",
+        "mother_contact": "1234567890",
+        "address": "123, 1st street, hyderabad",
+        "profile_image": "",
+        "dob": "2013-07-15",  # YYYY-MM-DD
+        "blood_group": "A+",
+        "nick_name": "Rahi"
     },
     {
         "student_id": "STU2025002",
@@ -98,7 +107,16 @@ students = [
         "parent_name": "Sunil Verma",
         "contact": "9876543210",
         "email": "sunil@example.com",
-        "joined_date": datetime(2024, 1, 15)
+        "joined_date": datetime(2024, 1, 15),
+        "father_name": "Sunil Verma",
+        "father_contact": "9876543210",
+        "mother_name": "Anita Verma",
+        "mother_contact": "9876543210",
+        "address": "456, 2nd avenue, mumbai",
+        "profile_image": "",
+        "dob": "2014-11-02",
+        "blood_group": "B+",
+        "nick_name": "Ani"
     },
     {
         "student_id": "STU2025003",
@@ -107,45 +125,22 @@ students = [
         "parent_name": "Neha Patel",
         "contact": "8765432109",
         "email": "neha@example.com",
-        "joined_date": datetime(2024, 3, 10)
+        "joined_date": datetime(2024, 3, 10),
+        "father_name": "Vikram Patel",
+        "father_contact": "8765432109",
+        "mother_name": "Neha Patel",
+        "mother_contact": "8765432109",
+        "address": "789, 3rd road, delhi",
+        "profile_image": "",
+        "dob": "2015-05-20",
+        "blood_group": "O+",
+        "nick_name": "Vicky"
     }
 ]
 
-# Function to add invoices to Firestore
-def add_invoices(invoices):
-    batch = db.batch()
-    invoices_ref = db.collection('invoices')
-    
-    for invoice in invoices:
-        doc_ref = invoices_ref.document(invoice['invoice_number'])
-        # Convert datetime to Firestore timestamp
-        if invoice.get('payment_date') and isinstance(invoice['payment_date'], datetime):
-            invoice['payment_date'] = firestore.SERVER_TIMESTAMP
-        
-        batch.set(doc_ref, invoice)
-    
-    batch.commit()
-    print(f"Added {len(invoices)} invoices to Firestore.")
+   
 
-# Function to add students to Firestore
-def add_students(students):
-    batch = db.batch()
-    students_ref = db.collection('students')
-    
-    for student in students:
-        doc_ref = students_ref.document(student['student_id'])
-        # Convert datetime to Firestore timestamp
-        if student.get('joined_date') and isinstance(student['joined_date'], datetime):
-            student['joined_date'] = firestore.SERVER_TIMESTAMP
-        
-        batch.set(doc_ref, student)
-    
-    batch.commit()
-    print(f"Added {len(students)} students to Firestore.")
-
-# Add this after the students and invoices data
-
-# 7. Attendance state data
+# Attendance data
 attendance_data = [
     # Present record
     {
@@ -156,7 +151,6 @@ attendance_data = [
         "time_out": "1:00 PM",
         "grade": "A"
     },
-    
     # Leave record
     {
         "student_id": "STU2025001",
@@ -164,7 +158,6 @@ attendance_data = [
         "status": "leave",
         "reason": "Sick leave"
     },
-    
     # Holiday record
     {
         "student_id": "STU2025001",
@@ -174,23 +167,41 @@ attendance_data = [
     }
 ]
 
-# 8. Function to add attendance records
+def add_invoices(invoices):
+    batch = db.batch()
+    invoices_ref = db.collection('invoices')
+    for invoice in invoices:
+        doc_ref = invoices_ref.document(invoice['invoice_number'])
+        # Convert datetime to Firestore timestamp
+        if invoice.get('payment_date') and isinstance(invoice['payment_date'], datetime):
+            invoice['payment_date'] = firestore.SERVER_TIMESTAMP
+        batch.set(doc_ref, invoice)
+    batch.commit()
+    print(f"Added {len(invoices)} invoices to Firestore.")
+
+def add_students(students):
+    batch = db.batch()
+    students_ref = db.collection('students')
+    for student in students:
+        doc_ref = students_ref.document(student['student_id'])
+        if student.get('joined_date') and isinstance(student['joined_date'], datetime):
+            student['joined_date'] = firestore.SERVER_TIMESTAMP
+        batch.set(doc_ref, student)
+    batch.commit()
+    print(f"Added {len(students)} students to Firestore.")
+
 def add_attendance_records(records):
     batch = db.batch()
     attendance_ref = db.collection('attendance_records')
     for record in records:
-        # Create unique ID: studentId_date
         doc_id = f"{record['student_id']}_{record['date']}"
         doc_ref = attendance_ref.document(doc_id)
         batch.set(doc_ref, record)
     batch.commit()
     print(f"Added {len(records)} attendance records to Firestore.")
 
-# 9. Call the new function
-add_attendance_records(attendance_data)
-
-# Execute the imports
 if __name__ == "__main__":
     add_invoices(invoices)
     add_students(students)
+    add_attendance_records(attendance_data)
     print("Data import completed successfully!")

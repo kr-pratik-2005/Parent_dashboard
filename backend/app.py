@@ -407,20 +407,147 @@ def get_report_status(student_id):
 @app.route('/get-attendance-report/<student_id>', methods=['GET'])
 def get_attendance_report(student_id):
     try:
-        date = request.args.get('date')  # e.g., "2025-05-02"
+        date = request.args.get('date')
         if not date:
             return jsonify({"error": "Date is required"}), 400
 
-        # Fetch attendance for that student on that date
-        doc_ref = db.collection("attendance").document(student_id).collection("records").document(date)
+        doc_id = f"{student_id}_{date}"
+        print(f"DEBUG: Looking for attendance_records document ID: '{doc_id}'")
+        doc_ref = db.collection("attendance_records").document(doc_id)
         doc = doc_ref.get()
 
         if doc.exists:
+            print(f"DEBUG: Found document for {doc_id}")
             return jsonify(doc.to_dict())
         else:
+            print(f"DEBUG: No document found for {doc_id}")
             return jsonify({"status": "absent"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/submit-leave-request', methods=['POST'])
+def submit_leave_request():
+    try:
+        data = request.json
+        leave_requests_ref = firestore.client().collection('leave_requests')
+        leave_requests_ref.add(data)
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/get-all-attendance/<student_id>', methods=['GET'])
+def get_all_attendance(student_id):
+    try:
+        attendance_ref = db.collection('attendance_records')
+        query = attendance_ref.where('student_id', '==', student_id)
+        records = []
+        for doc in query.stream():
+            data = doc.to_dict()
+            records.append({
+                "date": data.get("date"),
+                "status": data.get("status"),
+                "time_in": data.get("time_in"),
+                "time_out": data.get("time_out"),
+            })
+        # Sort by date (optional)
+        records.sort(key=lambda x: x["date"], reverse=True)
+        return jsonify({"records": records})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/get-parent-profile/<contact>', methods=['GET'])
+def get_parent_profile(contact):
+    try:
+        # Clean phone number
+        if contact.startswith("+91"):
+            contact = contact[3:]
+        elif contact.startswith("+"):
+            contact = contact[1:]
+        contact = contact.strip()
+
+        # Search in students collection
+        students_ref = db.collection("students")
+        query = students_ref.where("contact", "==", contact).limit(1).stream()
+
+        for doc in query:
+            data = doc.to_dict()
+            return jsonify({
+                "fatherName": data.get("father_name", ""),
+                "fatherContact": data.get("father_contact", ""),
+                "motherName": data.get("mother_name", ""),
+                "motherContact": data.get("mother_contact", ""),
+                "address": data.get("address", ""),
+                "profileImage": data.get("profile_image", ""),
+            })
+
+        return jsonify({}), 404
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# In app.py
+@app.route('/get-child-profile/<student_id>', methods=['GET'])
+def get_child_profile(student_id):
+    try:
+        students_ref = db.collection("students")
+        doc = students_ref.document(student_id).get()
+        if doc.exists:
+            data = doc.to_dict()
+            return jsonify({
+                "profileImage": data.get("profile_image", ""),
+                "name": data.get("name", ""),
+                "dob": data.get("dob", ""),
+                "bloodGroup": data.get("blood_group", ""),
+                "nickName": data.get("nick_name", ""),
+            })
+        return jsonify({}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+@app.route('/update-child-profile/<student_id>', methods=['POST'])
+def update_child_profile(student_id):
+    try:
+        data = request.json
+        students_ref = db.collection("students")
+        doc_ref = students_ref.document(student_id)
+        doc_ref.update({
+            "profile_image": data.get("profileImage", ""),
+            "name": data.get("name", ""),
+            "dob": data.get("dob", ""),
+            "blood_group": data.get("bloodGroup", ""),
+            "nick_name": data.get("nickName", ""),
+        })
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+@app.route('/update-parent-profile/<contact>', methods=['POST'])
+def update_parent_profile(contact):
+    try:
+        # Clean up contact number if needed
+        if contact.startswith("+91"):
+            contact = contact[3:]
+        elif contact.startswith("+"):
+            contact = contact[1:]
+        contact = contact.strip()
+        data = request.json
+        students_ref = db.collection("students")
+        # Find the first student with this contact (assuming one parent per contact)
+        query = students_ref.where("contact", "==", contact).limit(1).stream()
+        updated = False
+        for doc in query:
+            doc.reference.update({
+                "father_name": data.get("fatherName", ""),
+                "father_contact": data.get("fatherContact", ""),
+                "mother_name": data.get("motherName", ""),
+                "mother_contact": data.get("motherContact", ""),
+                "address": data.get("address", ""),
+                "profile_image": data.get("profileImage", ""),
+            })
+            updated = True
+        if updated:
+            return jsonify({"success": True}), 200
+        return jsonify({"success": False, "error": "Parent not found"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 if __name__ == '__main__':

@@ -52,7 +52,7 @@ const MobileProfileUI = () => {
   const menuItems = [
     { label: 'Parent Profile', onClick: () => navigate('/parent-profile') },
     { label: 'Child Profile', onClick: () => navigate('/child-profile') },
-    { label: 'Settings', onClick: () => navigate('/settings') },
+    
     { label: 'FAQ', onClick: () => navigate('/faq') },
     { label: 'Push Notification', onClick: () => navigate('/notifications') },
     { label: 'Logout', onClick: () => setShowLogoutConfirm(true) }

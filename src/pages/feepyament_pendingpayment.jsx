@@ -101,22 +101,28 @@ console.log("Contact being sent to Razorpay:", contact); // <--- ADD THIS LINE
         order_id: order.order_id,
 
         handler: async function (response) {
-          // Update payment status in backend
-          await fetch('http://localhost:5000/update-payment-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              invoice_number: invoiceNumber,
-              payment_id: response.razorpay_payment_id
-            })
-          });
-          // Refresh pending invoices after payment
-          const mobile = localStorage.getItem('parentMobile');
-          const res = await fetch(`http://localhost:5000/get-pending-after-payment/${mobile}`);
-          const data = await res.json();
-          setPendingInvoices(data);
-          alert(`✅ Payment Successful! ID: ${response.razorpay_payment_id}`);
-        },
+  // Update payment status in backend
+  console.log('Razorpay handler called', response);
+  await fetch('http://localhost:5000/update-payment-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      invoice_number: invoiceNumber,
+      payment_id: response.razorpay_payment_id
+    })
+  });
+  
+  // Navigate to success page with payment data
+  navigate('/payment-success', {
+    state: {
+      amount: amount,
+      paymentId: response.razorpay_payment_id,
+      orderId: response.razorpay_order_id,
+      invoiceNumber: invoiceNumber
+    }
+  });
+},
+
         modal: {
           ondismiss: function() {
             alert("Payment cancelled or window closed");
