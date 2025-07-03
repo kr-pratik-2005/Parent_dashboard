@@ -210,14 +210,8 @@ const ParentProfile = () => {
           onChange={handleChange}
           readOnly={!editMode}
         />
-        <div className="profile-label">Contact Details</div>
-        <input
-          className="profile-input"
-          name="fatherContact"
-          value={profile.fatherContact}
-          onChange={handleChange}
-          readOnly={!editMode}
-        />
+        
+        
         <div className="profile-label">Mother's Name</div>
         <input
           className="profile-input"

@@ -76,3 +76,4 @@ out/
 # Ignore firebase service account keys (never commit)
 serviceAccountKey.json
 google-services.json
+import_to_firestore.py

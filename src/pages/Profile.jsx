@@ -53,8 +53,8 @@ const MobileProfileUI = () => {
     { label: 'Parent Profile', onClick: () => navigate('/parent-profile') },
     { label: 'Child Profile', onClick: () => navigate('/child-profile') },
     
-    { label: 'FAQ', onClick: () => navigate('/faq') },
-    { label: 'Push Notification', onClick: () => navigate('/notifications') },
+   
+    { label: 'Notification', onClick: () => navigate('/notifications') },
     { label: 'Logout', onClick: () => setShowLogoutConfirm(true) }
   ];
 
@@ -173,7 +173,7 @@ const MobileProfileUI = () => {
       {/* Support Section */}
       <div style={{
         backgroundColor: '#666',
-        margin: '20px',
+        marginTop: '120px',
         borderRadius: '12px',
         padding: '20px',
         textAlign: 'center',

@@ -149,14 +149,24 @@ const Reports = () => {
           <span>Attendance Report</span>
           <span style={styles.cardArrow}>&#8250;</span>
         </button>
-        <button className="report-card-btn" style={styles.cardBtn}>
-          <span>Learning Milestone</span>
-          <span style={styles.cardArrow}>&#8250;</span>
-        </button>
-        <button className="report-card-btn" style={styles.cardBtn}>
-          <span>Annual Report</span>
-          <span style={styles.cardArrow}>&#8250;</span>
-        </button>
+        <button
+  className="report-card-btn"
+  style={styles.cardBtn}
+  onClick={() => navigate('/coming-soon')}
+>
+  <span>Learning Milestone</span>
+  <span style={styles.cardArrow}>&#8250;</span>
+</button>
+
+        <button
+  className="report-card-btn"
+  style={styles.cardBtn}
+  onClick={() => navigate('/coming-soon')}
+>
+  <span>Annual Report</span>
+  <span style={styles.cardArrow}>&#8250;</span>
+</button>
+
       </div>
 
       {/* Bottom Navigation */}

@@ -18,7 +18,7 @@ import Leaveform from './pages/Leaveform';
 import Reports from './pages/Reports';
 import DailyReport from './pages/DailyReport';
 import ChildProfile from './pages/ChildProfile';
-
+import ComingSoon from './pages/ComingSoon';
 import PaymentSuccess from './pages/PaymentSuccess';
 
 function App() {
@@ -62,7 +62,7 @@ function App() {
   path="/daily-report/:studentId" 
   element={user ? <DailyReport /> : <Navigate to="/login" />} 
 />
-
+<Route path="/coming-soon" element={<ComingSoon />} />
 <Route
   path="/attendance-report/:studentId"
   element={user ? <AttendanceReport /> : <Navigate to="/login" />}
