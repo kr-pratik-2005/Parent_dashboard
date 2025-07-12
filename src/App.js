@@ -20,7 +20,7 @@ import DailyReport from './pages/DailyReport';
 import ChildProfile from './pages/ChildProfile';
 import ComingSoon from './pages/ComingSoon';
 import PaymentSuccess from './pages/PaymentSuccess';
-
+import SendMessage from './pages/SendMessage';
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +115,7 @@ function App() {
           path="/reports" 
           element={user ? <Reports /> : <Navigate to="/login" />} 
         />
+<Route path="/send-message" element={<SendMessage />} />
 
        
       </Routes>

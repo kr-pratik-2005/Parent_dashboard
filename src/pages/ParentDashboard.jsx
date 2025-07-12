@@ -10,15 +10,22 @@ const ParentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [parentName, setParentName] = useState('Parent');
   const auth = getAuth();
-  const [studentIds, setStudentIds] = useState([]);
 
+  // Multi-student support
+  const [students, setStudents] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+
+  // Load students from localStorage
   useEffect(() => {
-    const storedIds = localStorage.getItem('studentIds');
-    if (storedIds) {
-      setStudentIds(JSON.parse(storedIds));
+    const stored = localStorage.getItem('students');
+    if (stored) {
+      const stuArr = JSON.parse(stored);
+      setStudents(stuArr);
+      if (stuArr.length > 0) setSelectedStudent(stuArr[0]);
     }
   }, []);
 
+  // Fetch parent name
   useEffect(() => {
     const fetchParentName = async () => {
       const user = auth.currentUser;
@@ -37,32 +44,39 @@ const ParentDashboard = () => {
       }
     };
     fetchParentName();
-  }, []);
+  }, [auth]);
 
-  useEffect(() => {
-    const fetchUnpaidMonths = async () => {
-      try {
-        const mobile = localStorage.getItem('parentMobile');
-        if (!mobile) {
-          console.error('Mobile number not found');
-          setLoading(false);
-          return;
-        }
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/unpaid-months/${mobile}`);
-        if (response.ok) {
-          const data = await response.json();
-          setUnpaidMonths(data.unpaidMonths || []);
-        } else {
-          console.error('Failed to fetch unpaid months');
-        }
-      } catch (error) {
-        console.error('Error fetching unpaid months:', error);
-      } finally {
-        setLoading(false);
+  // Fetch unpaid months (fees) for selected student
+ useEffect(() => {
+  const fetchUnpaidMonths = async () => {
+    if (!selectedStudent) {
+      setUnpaidMonths([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/get-fees-by-student/${selectedStudent.student_id}?contact=${selectedStudent.contact}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        // Only consider invoices where paid === false
+        const pendingMonths = data
+          .filter(inv => inv.paid === false)
+          .map(inv => inv.month);
+        setUnpaidMonths(pendingMonths);
+      } else {
+        console.error('Failed to fetch pending invoices');
       }
-    };
-    fetchUnpaidMonths();
-  }, []);
+    } catch (error) {
+      console.error('Error fetching pending invoices:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  fetchUnpaidMonths();
+}, [selectedStudent]);
+
 
   const todayStr = new Date().toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric'
@@ -86,16 +100,33 @@ const ParentDashboard = () => {
     }
   };
 
+  // Handle student selection
+  const handleStudentChange = (e) => {
+    const stu = students.find(s => s.student_id === e.target.value);
+    setSelectedStudent(stu);
+    setLoading(true); // Refetch unpaid months for new student
+  };
+
+  // Handle navigation to fees
+  const handleFeesClick = () => {
+    if (selectedStudent) {
+      localStorage.setItem('selectedStudent', JSON.stringify(selectedStudent));
+      navigate('/feepayment');
+    } else {
+      alert('Please select a child.');
+    }
+  };
+
+  // Handle navigation to daily report
   const handleDailyReportClick = () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const formattedDate = yesterday.toISOString().split('T')[0];
 
-    if (studentIds.length > 0) {
-      const studentId = studentIds[0];
-      navigate(`/daily-report/${studentId}?date=${formattedDate}`);
+    if (selectedStudent) {
+      navigate(`/daily-report/${selectedStudent.student_id}?date=${formattedDate}`);
     } else {
-      alert('No student linked to this account.');
+      alert('Please select a child.');
     }
   };
 
@@ -151,6 +182,26 @@ const ParentDashboard = () => {
             What did your baby<br />do today?
           </h2>
         </div>
+
+        {/* Student Selector */}
+        {students.length > 1 && (
+          <div style={{ margin: '0 20px 18px 20px' }}>
+            <select
+              value={selectedStudent ? selectedStudent.student_id : ''}
+              onChange={handleStudentChange}
+              style={{
+                padding: '8px',
+                borderRadius: '8px',
+                border: '1px solid #ccc',
+                fontSize: '1rem'
+              }}
+            >
+              {students.map(stu => (
+                <option key={stu.student_id} value={stu.student_id}>{stu.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Date Row */}
         <div style={{
@@ -216,7 +267,7 @@ const ParentDashboard = () => {
           }}>
             • {formatUnpaidMonths()}{' '}
             <button
-              onClick={() => navigate('/feepayment')}
+              onClick={handleFeesClick}
               style={{
                 background: 'none',
                 border: 'none',
@@ -264,7 +315,7 @@ const ParentDashboard = () => {
           <button style={actionBtnStyle} onClick={() => navigate('/cctv')}>
             CCTV
           </button>
-          <button style={actionBtnStyle} onClick={() => navigate('/feepayment')}>
+          <button style={actionBtnStyle} onClick={handleFeesClick}>
             Fees
           </button>
           <button style={actionBtnStyle} onClick={() => navigate('/leaveform')}>

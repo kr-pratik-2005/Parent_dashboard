@@ -46,8 +46,8 @@ export default function Login2() {
     const students = await res.json();
 
     if (Array.isArray(students) && students.length > 0) {
-      const studentIds = students.map(s => s.student_id);
-      localStorage.setItem('studentIds', JSON.stringify(studentIds));
+      localStorage.setItem('students', JSON.stringify(students));
+
       navigate('/parent-dashboard');
     } else {
       alert('No student linked to this account.');
@@ -89,7 +89,7 @@ export default function Login2() {
         <img src={giraffeIcon} alt="giraffe" style={{ width: '60px', marginBottom: '16px' }} />
         <h2 style={{ fontWeight: 600, margin: '0 0 8px' }}>Enter Verification Code</h2>
         <p style={{ color: '#666', fontSize: '0.95rem', margin: '0 0 24px' }}>
-          Please enter the 6-digit code sent to your mobile number ********{maskedNumber}
+          Please enter the 6-digit code sent to your mobile number
         </p>
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '20px' }}>

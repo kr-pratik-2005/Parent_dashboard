@@ -10,6 +10,8 @@ from firebase_admin import credentials, firestore
 from dateutil.relativedelta import relativedelta
 from flask_cors import CORS
 from google.cloud.firestore_v1 import DocumentSnapshot
+from config import Config
+from flask_mail import Mail, Message
 
 # ---------- Logging Setup ----------
 logging.basicConfig(
@@ -23,9 +25,13 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 app = Flask(__name__)
+app.config.from_object(Config)
+mail = Mail(app)
 
 # ---------- CORS Middleware ----------
-ALLOWED_ORIGINS = ["http://localhost:3000", "https://parent-dashboard-chi.vercel.app"]
+ALLOWED_ORIGINS = ["http://localhost:3000",   # Admin site
+    "http://localhost:3001",   # Parent Dashboard (you missed this)
+    "https://parent-dashboard-chi.vercel.app" ]
 
 @app.before_request
 def handle_preflight():
@@ -84,17 +90,17 @@ def convert_to_datetime(date_value):
 
 # ---------- Firestore Operations ----------
 def get_pending_invoices(contact):
-    invoices_ref = db.collection('invoices')
+    invoices_ref = db.collection('fees')
     query = invoices_ref.where('contact', '==', contact).where('status', '==', 'pending')
     return [doc.to_dict() for doc in query.stream()]
 
 def get_all_invoices(contact):
-    invoices_ref = db.collection('invoices')
+    invoices_ref = db.collection('fees')
     query = invoices_ref.where('contact', '==', contact)
     return [doc.to_dict() for doc in query.stream()]
 
 def update_invoice_status(invoice_number, payment_id):
-    invoices_ref = db.collection('invoices')
+    invoices_ref = db.collection('fees')
     query = invoices_ref.where('invoice_number', '==', invoice_number).limit(1).stream()
     for doc in query:
         doc_ref = invoices_ref.document(doc.id)
@@ -126,7 +132,7 @@ def generate_invoices_to_current(student_id, contact, last_paid_month=None):
         gen_month_index = 0
 
     logger.info(f"Generating invoices from {month_names[gen_month_index]} {gen_year} to {month_names[current_month_index]} {current_year}")
-    invoices_ref = db.collection('invoices')
+    invoices_ref = db.collection('fees')
     new_invoices = []
 
     while (gen_year < current_year) or (gen_year == current_year and gen_month_index <= current_month_index):
@@ -164,18 +170,42 @@ def generate_invoices_to_current(student_id, contact, last_paid_month=None):
 def get_unpaid_months(mobile):
     try:
         mobile = unquote(mobile).strip()
-        pending_invoices = get_pending_invoices(mobile)
-        unpaid_months = [inv['month'] for inv in pending_invoices]
-        return jsonify({
-            'success': True,
-            'unpaidMonths': unpaid_months
-        })
+
+        # Fetch student based on parent's mobile number
+        students_ref = db.collection('students')
+        query = students_ref.where('contact', '==', mobile).limit(1).stream()
+        student_doc = next(query, None)
+
+        if not student_doc:
+            return jsonify({'success': False, 'message': 'Student not found'}), 404
+
+        student = student_doc.to_dict()
+        last_paid_month = student.get('last_paid_month')
+
+        if not last_paid_month:
+            return jsonify({'success': False, 'message': 'last_paid_month not available'}), 400
+
+        # Define months list
+        month_names = ["January", "February", "March", "April", "May", "June",
+                       "July", "August", "September", "October", "November", "December"]
+
+        # Assume last_paid_month is in current year
+        current_year = datetime.now().year
+        current_month_index = datetime.now().month - 1
+        last_paid_index = month_names.index(last_paid_month)
+
+        # Build unpaid months from (last_paid_index + 1) to current month
+        unpaid_months = []
+        for i in range(last_paid_index + 1, current_month_index + 1):
+            unpaid_months.append(f"{month_names[i]} {current_year}")
+
+        return jsonify({'success': True, 'unpaidMonths': unpaid_months})
+
     except Exception as e:
         logger.error(f"Error in get_unpaid_months: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
 @app.route('/create-order', methods=['POST'])
 def create_order():
@@ -206,87 +236,118 @@ def create_order():
 
 @app.route('/update-payment-status', methods=['POST'])
 def update_payment_status():
-    data = request.json
-    invoice_number = data.get('invoice_number')
-    payment_id = data.get('payment_id')
-    
-    success = update_invoice_status(invoice_number, payment_id)
-    if success:
-        invoices_ref = db.collection('invoices')
-        query = invoices_ref.where('invoice_number', '==', invoice_number).limit(1).stream()
-        paid_invoice = None
+    try:
+        data = request.json
+        invoice_number = data.get('invoice_number')
+        payment_id = data.get('payment_id')
+
+        if not invoice_number or not payment_id:
+            return jsonify({"success": False, "message": "Missing invoice_number or payment_id"}), 400
+
+        fees_ref = db.collection('fees')
+        query = fees_ref.where('invoice_number', '==', invoice_number).limit(1).stream()
+
+        doc_id = None
+        fee_data = None
+
         for doc in query:
-            paid_invoice = doc.to_dict()
+            doc_id = doc.id
+            fee_data = doc.to_dict()
             break
-        if paid_invoice:
-            generate_invoices_to_current(
-                student_id=paid_invoice['student_id'],
-                contact=paid_invoice['contact'],
-                last_paid_month=paid_invoice['month']
-            )
-        return jsonify({"success": True})
-    return jsonify({"success": False}), 400
+
+        if not doc_id or not fee_data:
+            return jsonify({"success": False, "message": "Invoice not found"}), 404
+
+        # ✅ Update the fees document
+        fees_ref.document(doc_id).update({
+            "paid": True,
+            "payment_id": payment_id,
+            "payment_date": firestore.SERVER_TIMESTAMP
+        })
+
+        # ✅ Update last_paid_month in students collection
+        student_id = fee_data.get('student_id')
+        paid_month = fee_data.get('month')  # example: "July 2025"
+        if student_id and paid_month:
+            students_ref = db.collection('students')
+            student_query = students_ref.where('student_id', '==', student_id).limit(1).stream()
+            for student_doc in student_query:
+                students_ref.document(student_doc.id).update({
+                    "last_paid_month": paid_month.split()[0]  # only the month name (e.g., "July")
+                })
+                break
+
+        return jsonify({"success": True, "message": "Payment status updated and student record updated."})
+
+    except Exception as e:
+        logger.error(f"Error in update_payment_status: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route('/get-pending-after-payment/<contact>', methods=['GET'])
 def get_pending_after_payment(contact):
     try:
         contact = unquote(contact).strip()
-        all_invoices = get_all_invoices(contact)
-        if not all_invoices:
-            students_ref = db.collection('students')
-            query = students_ref.where('contact', '==', contact).limit(1).stream()
-            student = None
-            for doc in query:
-                student = doc.to_dict()
-                break
-            if not student:
-                return jsonify({"last_paid_month": None, "pending_invoices": []})
-            generate_invoices_to_current(
-                student_id=student['student_id'],
-                contact=contact,
-                last_paid_month=None
-            )
-            all_invoices = get_all_invoices(contact)
 
-        paid_invoices = [inv for inv in all_invoices if inv.get('status') == 'paid' and inv.get('payment_date')]
-        last_paid_invoice = None
-        if paid_invoices:
-            last_paid_invoice = max(paid_invoices, key=lambda x: convert_to_datetime(x['payment_date']))
+        # Get student record
+        students_ref = db.collection('students')
+        query = students_ref.where('contact', '==', contact).limit(1).stream()
+        student_doc = next(query, None)
 
-        if last_paid_invoice:
-            generate_invoices_to_current(
-                student_id=last_paid_invoice['student_id'],
-                contact=contact,
-                last_paid_month=last_paid_invoice['month']
-            )
-            all_invoices = get_all_invoices(contact)
+        if not student_doc:
+            return jsonify({"success": False, "message": "Student not found"}), 404
 
-        if last_paid_invoice:
-            last_paid_key = month_to_sort_key(last_paid_invoice['month'])
-            pending_invoices = [
-                inv for inv in all_invoices
-                if inv['status'] == 'pending' and month_to_sort_key(inv['month']) > last_paid_key
-            ]
-        else:
-            pending_invoices = [inv for inv in all_invoices if inv['status'] == 'pending']
+        student = student_doc.to_dict()
+        last_paid_month = student.get('last_paid_month')  # e.g. "May"
 
-        pending_invoices.sort(key=lambda x: month_to_sort_key(x['month']))
+        if not last_paid_month:
+            return jsonify({"success": False, "message": "No last_paid_month found"}), 400
+
+        month_names = ["January", "February", "March", "April", "May", "June",
+                       "July", "August", "September", "October", "November", "December"]
+
+        # ---- Setup month calculations ----
+        try:
+            start_index = month_names.index(last_paid_month.strip())
+        except ValueError:
+            return jsonify({"success": False, "message": "Invalid last_paid_month"}), 400
+
+        current_month_index = datetime.now().month - 1
+        current_year = datetime.now().year
+
+        # If last_paid_month is same as current, nothing pending
+        if start_index >= current_month_index:
+            return jsonify({
+                "success": True,
+                "last_paid_month": last_paid_month,
+                "pending_invoices": []
+            })
+
+        # ---- Create invoice list from (last_paid_month + 1) to current month ----
+        pending_invoices = []
+        for i in range(start_index + 1, current_month_index + 1):
+            month_str = f"{month_names[i]} {current_year}"
+            invoice_number = f"INV-{current_year}{i+1:02d}-{student['student_id']}"
+            due_date = datetime(current_year, i+1, 1).strftime('%Y-%m-%d')
+
+            pending_invoices.append({
+                "invoice_number": invoice_number,
+                "month": month_str,
+                "amount": student.get('fees', 9500),
+                "due_date": due_date,
+                "status": "pending"
+            })
 
         return jsonify({
-            "last_paid_month": last_paid_invoice['month'] if last_paid_invoice else None,
-            "pending_invoices": [
-                {
-                    "invoice_number": inv.get("invoice_number"),
-                    "month": inv.get("month"),
-                    "amount": inv.get("amount"),
-                    "due_date": inv.get("due_date"),
-                    "status": inv.get("status")
-                } for inv in pending_invoices
-            ]
+            "success": True,
+            "last_paid_month": last_paid_month,
+            "pending_invoices": pending_invoices
         })
+
     except Exception as e:
         logger.error(f"Error in get_pending_after_payment: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route('/get-student-by-contact/<contact>', methods=['GET'])
 def get_student_by_contact(contact):
@@ -307,7 +368,7 @@ def get_student_by_contact(contact):
 
 @app.route('/dump-invoices')
 def dump_invoices():
-    invoices_ref = db.collection('invoices')
+    invoices_ref = db.collection('fees')
     docs = invoices_ref.stream()
     invoices = [doc.to_dict() for doc in docs]
     return jsonify(invoices)
@@ -548,6 +609,42 @@ def update_parent_profile(contact):
         return jsonify({"success": False, "error": "Parent not found"}), 404
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/get-fees-by-student/<student_id>', methods=['GET'])
+def get_fees_by_student(student_id):
+    contact = request.args.get('contact', '').strip()
+    fees_ref = db.collection('fees')
+    query = fees_ref.where('student_id', '==', student_id)
+    if contact:
+        query = query.where('contact', '==', contact)
+    invoices = []
+    for doc in query.stream():
+        data = doc.to_dict()
+        # Ensure 'paid' field exists for each invoice
+        if 'paid' not in data:
+            data['paid'] = False
+        invoices.append(data)
+    return jsonify(invoices)
+
+@app.route('/api/messages/send', methods=['POST'])
+def send_message():
+    data = request.get_json()
+    from_id = data.get('from')
+    content = data.get('content')
+    timestamp = data.get('timestamp')
+
+    # Compose email
+    subject = f"New Message from {from_id}"
+    body = f"Message: {content}\nSent at: {timestamp}"
+
+    try:
+        msg = Message(subject=subject,
+                      recipients=['destination@gmail.com'],  # Replace with the fixed Gmail address
+                      body=body)
+        mail.send(msg)
+        return jsonify({'success': True, 'message': 'Email sent!'}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':

@@ -35,35 +35,40 @@ export default function Login1() {
   };
 
   const handleLogin = async () => {
-    setError('');
-    if (!mobileNumber || mobileNumber.length < 10) {
-      setError('Please enter a valid mobile number');
-      return;
-    }
+  setError('');
+  if (!mobileNumber || mobileNumber.length < 10) {
+    setError('Please enter a valid mobile number');
+    return;
+  }
 
-    setLoading(true);
-    try {
-      setUpRecaptcha();
-      const phoneNumber = `+91${mobileNumber}`;
-      const confirmationResult = await signInWithPhoneNumber(
-        auth,
-        phoneNumber,
-        window.recaptchaVerifier
-      );
+  setLoading(true);
+  try {
+    setUpRecaptcha();
+    const phoneNumber = `+91${mobileNumber}`;
+    const confirmationResult = await signInWithPhoneNumber(
+      auth,
+      phoneNumber,
+      window.recaptchaVerifier
+    );
 
-      window.confirmationResult = confirmationResult;
-      sessionStorage.setItem('phoneNumber', phoneNumber);
-      navigate('/login2');
-    } catch (err) {
-      setError(err.message || 'Failed to send OTP. Please try again.');
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = null;
-      }
-    } finally {
-      setLoading(false);
+    window.confirmationResult = confirmationResult;
+    sessionStorage.setItem('phoneNumber', phoneNumber);
+
+    // 👇 Store the clean number for API use
+    localStorage.setItem('parentMobile', mobileNumber);
+
+    navigate('/login2');
+  } catch (err) {
+    setError(err.message || 'Failed to send OTP. Please try again.');
+    if (window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+      window.recaptchaVerifier = null;
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const isMobileInvalid = mobileNumber.length > 0 && mobileNumber.length < 10;
 
