@@ -2,7 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Loader } from 'lucide-react';
 import BottomNav from '../components/BottomNav';
+import { db } from "../firebase/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
+// --- Styles ---
 const containerStyle = { maxWidth: 480, margin: "0 auto", padding: 16, background: "#f9f9f9", minHeight: "100vh" };
 const headerRowStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 };
 const headerBtnStyle = { background: "none", border: "none", fontSize: 22, cursor: "pointer" };
@@ -32,33 +35,7 @@ export default function FeesPayment() {
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
-  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
-
-  // Fetch students on mount
-  const fetchInvoices = async (student) => {
-  setLoading(true);
-  try {
-    const res = await fetch(
-      `${API_URL}/get-fees-by-student/${student.student_id}?contact=${student.contact}`
-    );
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    setInvoices(data);
-  } catch (err) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
-useEffect(() => {
-  if (!selectedStudent) {
-    setInvoices([]);
-    setLoading(false);
-    return;
-  }
-  fetchInvoices(selectedStudent);
-}, [API_URL, selectedStudent]);
-
+  // Load students from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem('students');
     if (stored) {
@@ -68,7 +45,7 @@ useEffect(() => {
     }
   }, []);
 
-  // Fetch invoices for selected student
+  // Fetch pending invoices from Firestore for the selected student
   useEffect(() => {
     if (!selectedStudent) {
       setInvoices([]);
@@ -79,13 +56,23 @@ useEffect(() => {
       setLoading(true);
       setError("");
       try {
-        // Fetch all fees for this student and parent
-        const res = await fetch(
-          `${API_URL}/get-fees-by-student/${selectedStudent.student_id}?contact=${selectedStudent.contact}`
+        // Query: paid === false, sent === true, razorpay_link exists, contact matches
+        const q = query(
+          collection(db, "fees"),
+          where("contact", "==", selectedStudent.contact),
+          where("paid", "==", false),
+          where("sent", "==", true)
         );
-        if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        setInvoices(data); // data is an array of fee objects
+        const querySnapshot = await getDocs(q);
+        const result = [];
+        querySnapshot.forEach(doc => {
+          const data = doc.data();
+          // Check for valid razorpay_link
+          if (data.razorpay_link && typeof data.razorpay_link === "string" && data.razorpay_link.length > 10) {
+            result.push(data);
+          }
+        });
+        setInvoices(result);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -93,47 +80,20 @@ useEffect(() => {
       }
     };
     fetchInvoices();
-  }, [API_URL, selectedStudent]);
+  }, [selectedStudent]);
 
   const handleToggle = (invoiceNumber) => {
     setOpenInvoice(prev => prev === invoiceNumber ? null : invoiceNumber);
   };
-  const handleRefreshPayment = async (invoice) => {
-  setLoading(true);
-  try {
-    // Call your backend to check payment status and update if paid
-    const res = await fetch(`${API_URL}/refresh-payment-status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ invoice_number: invoice.invoice_number })
-    });
-    const data = await res.json();
-    if (data.paid) {
-      alert("Payment confirmed! Invoice marked as paid.");
-      fetchInvoices(selectedStudent);  // Refetch to update UI
-    } else {
-      alert("Payment not yet confirmed. Please try again in a few seconds.");
-    }
-  } catch (err) {
-    alert("Error checking payment status. Try again.");
-  }
-  setLoading(false);
-};
-
 
   const handlePayNow = (invoice) => {
-    if (invoice.razorpay_invoice_link) {
-      window.open(invoice.razorpay_invoice_link, "_blank");
+    if (invoice.razorpay_link) {
+      window.open(invoice.razorpay_link, "_blank");
     }
   };
 
-  // Only show invoices for this student that have a razorpay_invoice_link and paid === false
-  const pending = invoices.filter(
-    inv => inv.razorpay_invoice_link && inv.paid === false
-  );
-  const paid = invoices.filter(
-    inv => inv.paid === true
-  );
+  // Only show pending invoices (already filtered)
+  const pending = invoices;
 
   if (loading) return (
     <div style={{ textAlign: "center", marginTop: 80 }}>
@@ -176,7 +136,6 @@ useEffect(() => {
             ))}
           </select>
           <button style={filterBtnStyle}>☰</button>
-          
         </div>
       )}
 
@@ -213,10 +172,7 @@ useEffect(() => {
             >
               Pay Now
             </button>
-   
-
           </div>
-         
           <div style={{ color: "#888", fontSize: 14, marginTop: 7 }}>
             Daycare Fee for {inv.month}
           </div>
@@ -243,46 +199,6 @@ useEffect(() => {
         </div>
       )) : (
         <div style={{ textAlign: "center", padding: 20 }}>No pending payments found</div>
-      )}
-
-      {/* Paid Invoices (Optional: show below pending) */}
-      {paid.length > 0 && (
-        <>
-          <h3 style={{ marginTop: 24, fontSize: 17, fontWeight: 600 }}>Paid Invoices</h3>
-          {paid.map(inv => (
-            <div key={inv.invoice_number} style={invoiceCardStyle}>
-              <div style={rowBetweenStyle}>
-                <span>
-                  <span style={amountStyle}>₹ {inv.amount}</span>
-                  <span style={statusPaidStyle}>Paid</span>
-                </span>
-              </div>
-              <div style={{ color: "#888", fontSize: 14, marginTop: 7 }}>
-                Daycare Fee for {inv.month}
-              </div>
-              <button
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#007bff",
-                  textDecoration: "underline",
-                  fontSize: 14,
-                  marginTop: 6,
-                  cursor: "pointer"
-                }}
-                onClick={() => handleToggle(inv.invoice_number)}
-              >
-                {openInvoice === inv.invoice_number ? "Hide Details" : "Show Details"}
-              </button>
-              {openInvoice === inv.invoice_number && (
-                <div style={detailsStyle}>
-                  <div>Invoice Number<br /><b>{inv.invoice_number}</b></div>
-                  <div style={{ marginTop: 4 }}>Payment Date<br /><b>{inv.payment_date || "Not paid yet"}</b></div>
-                </div>
-              )}
-            </div>
-          ))}
-        </>
       )}
 
       <BottomNav />
