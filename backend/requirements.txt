@@ -6,4 +6,4 @@ razorpay
 python-dateutil
 gunicorn
 setuptools
-
+firebase-admin
