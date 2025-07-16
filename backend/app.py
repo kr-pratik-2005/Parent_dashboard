@@ -60,7 +60,9 @@ def add_cors_headers(response):
     return response
 
 # ---------- Firebase Setup ----------
-cred = credentials.Certificate(os.getenv('FIREBASE_SERVICE_ACCOUNT_PATH', 'serviceAccountKey.json'))
+cred_path = os.environ['FIREBASE_SERVICE_ACCOUNT_JSON']
+cred = credentials.Certificate(cred_path)
+
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
