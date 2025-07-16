@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from urllib.parse import unquote
 import firebase_admin
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore,initialize_app
 from dateutil.relativedelta import relativedelta
 import hmac
 import hashlib
@@ -61,11 +61,19 @@ def add_cors_headers(response):
     return response
 
 # ---------- Firebase Setup ----------
-service_account_json = json.loads(os.environ['FIREBASE_SERVICE_ACCOUNT_JSON'])
-cred = credentials.Certificate(service_account_json)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+raw_json = os.environ['FIREBASE_SERVICE_ACCOUNT_JSON']
 
+# Replace escaped \\n with real newlines \n
+fixed_json_str = raw_json.replace('\\n', '\n')
+
+# Load JSON
+service_account_info = json.loads(fixed_json_str)
+
+# Initialize credentials
+cred = credentials.Certificate(service_account_info)
+initialize_app(cred)
+
+db = firestore.client()
 # ---------- Razorpay Setup ----------
 razorpay_client = razorpay.Client(
     auth=(os.getenv('RAZORPAY_KEY_ID'), os.getenv('RAZORPAY_KEY_SECRET'))
