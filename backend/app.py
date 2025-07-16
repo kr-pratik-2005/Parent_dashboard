@@ -11,6 +11,7 @@ from dateutil.relativedelta import relativedelta
 import hmac
 import hashlib
 import base64
+import json
 # ---------- Logging Setup ----------
 logging.basicConfig(
     level=logging.INFO,
@@ -60,9 +61,8 @@ def add_cors_headers(response):
     return response
 
 # ---------- Firebase Setup ----------
-cred_path = os.environ['FIREBASE_SERVICE_ACCOUNT_JSON']
-cred = credentials.Certificate(cred_path)
-
+service_account_json = json.loads(os.environ['FIREBASE_SERVICE_ACCOUNT_JSON'])
+cred = credentials.Certificate(service_account_json)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
