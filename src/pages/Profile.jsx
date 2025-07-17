@@ -11,6 +11,7 @@ import {
   collection,
   query,
   where,
+  orderBy,
   onSnapshot,
   doc,
   updateDoc
@@ -24,6 +25,9 @@ const MobileProfileUI = () => {
   const [parentName, setParentName] = useState('Parent');
   const [notifications, setNotifications] = useState([]);
   const [notificationCount, setNotificationCount] = useState(0);
+
+  // NEW: State for announcements
+  const [announcements, setAnnouncements] = useState([]);
 
   // 🔔 Fetch messages sent to this parent's phone number
   useEffect(() => {
@@ -46,6 +50,23 @@ const MobileProfileUI = () => {
 
       setNotifications(msgs);
       setNotificationCount(msgs.filter(msg => msg.read === false).length);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // NEW: Fetch announcements (all parents see all announcements)
+  useEffect(() => {
+    const q = query(
+      collection(db, "announcements"),
+      orderBy("timestamp", "desc")
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const anns = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setAnnouncements(anns);
     });
 
     return () => unsubscribe();
@@ -193,7 +214,40 @@ const MobileProfileUI = () => {
         backgroundColor: '#fff',
         boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
       }}>
-        <h3 style={{ marginBottom: 10 }}>Messages from Teachers</h3>
+        {/* Announcements */}
+        <h3 style={{ marginBottom: 10 }}>Announcements</h3>
+        {announcements.length === 0 ? (
+          <p style={{ fontSize: 14, color: '#888', marginBottom: 18 }}>No announcements yet.</p>
+        ) : (
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, marginBottom: 22 }}>
+            {announcements.map(a => (
+              <li key={a.id}
+                style={{
+                  marginBottom: '16px',
+                  background: '#edfaff',
+                  borderLeft: '4px solid #38bdf8',
+                  padding: '8px 14px 8px 12px',
+                  borderRadius: '6px'
+                }}
+              >
+                <div style={{ fontWeight: 500, color: '#0ea5e9', marginBottom: 4 }}>
+                  📢 {a.message}
+                </div>
+                <div style={{ fontSize: 12, color: '#666' }}>
+                  {a.from && <span>By: {a.from} </span>}
+                  {a.timestamp?.toDate
+                    ? ` | ${a.timestamp.toDate().toLocaleString()}`
+                    : a.date
+                      ? ` | ${new Date(a.date).toLocaleString()}`
+                      : ''}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Messages from Teachers */}
+        <h3 style={{ marginBottom: 10, marginTop: 10 }}>Messages from Teachers</h3>
         {notifications.length === 0 ? (
           <p style={{ fontSize: 14, color: '#666' }}>No messages yet.</p>
         ) : (

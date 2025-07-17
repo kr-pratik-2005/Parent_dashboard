@@ -6,12 +6,11 @@ import logging
 from datetime import datetime
 from urllib.parse import unquote
 import firebase_admin
-from firebase_admin import credentials, firestore,initialize_app
+from firebase_admin import credentials, firestore
 from dateutil.relativedelta import relativedelta
 import hmac
 import hashlib
 import base64
-import json
 # ---------- Logging Setup ----------
 logging.basicConfig(
     level=logging.INFO,
@@ -61,19 +60,10 @@ def add_cors_headers(response):
     return response
 
 # ---------- Firebase Setup ----------
-raw_json = os.environ['FIREBASE_SERVICE_ACCOUNT_JSON']
-
-# Replace escaped \\n with real newlines \n
-fixed_json_str = raw_json.replace('\\n', '\n')
-
-# Load JSON
-service_account_info = json.loads(fixed_json_str)
-
-# Initialize credentials
-cred = credentials.Certificate(service_account_info)
-initialize_app(cred)
-
+cred = credentials.Certificate(os.getenv('FIREBASE_SERVICE_ACCOUNT_PATH', 'serviceAccountKey.json'))
+firebase_admin.initialize_app(cred)
 db = firestore.client()
+
 # ---------- Razorpay Setup ----------
 razorpay_client = razorpay.Client(
     auth=(os.getenv('RAZORPAY_KEY_ID'), os.getenv('RAZORPAY_KEY_SECRET'))
@@ -528,6 +518,7 @@ def create_payment_link():
     except Exception as e:
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/razorpayWebhook", methods=["POST"])
 def razorpay_webhook():
