@@ -165,7 +165,7 @@ export default function Leaveform() {
       if (phone.startsWith("+91")) phone = phone.slice(3);
       else if (phone.startsWith("+")) phone = phone.slice(1);
 
-      const res = await fetch(`http://localhost:5000/get-students-by-contact/${phone}`);
+      const res = await fetch(`https://mkfeez.mimansakids.com/get-students-by-contact/${phone}`);
       const data = await res.json();
       setStudents(data); // data is an array of student objects
       // If only one student, auto-select
@@ -208,7 +208,7 @@ export default function Leaveform() {
     };
 
     try {
-      const res = await fetch("http://localhost:5000/submit-leave-request", {
+      const res = await fetch("https://mkfeez.mimansakids.com/submit-leave-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(leaveData),

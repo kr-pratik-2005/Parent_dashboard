@@ -9,7 +9,7 @@ export default function AttendanceReport() {
 
   useEffect(() => {
     const fetchAttendance = async () => {
-      const res = await fetch(`http://localhost:5000/get-all-attendance/${studentId}`);
+      const res = await fetch(`https://mkfeez.mimansakids.com/get-all-attendance/${studentId}`);
       const data = await res.json();
       setRecords(data.records || []);
       setLoading(false);

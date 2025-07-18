@@ -55,7 +55,7 @@ export default function FeePaymentPendingPayment() {
           setLoading(false);
           return;
         }
-        const response = await fetch(`http://localhost:5000/get-pending-after-payment/${mobile}`);
+        const response = await fetch(`https://mkfeez.mimansakids.com/get-pending-after-payment/${mobile}`);
         if (!response.ok) throw new Error("Failed to fetch pending invoices");
         const data = await response.json();
         setPendingInvoices(data);
@@ -73,7 +73,7 @@ export default function FeePaymentPendingPayment() {
     setIsPaying(true);
     try {
       // Create order via backend
-      const response = await fetch("http://localhost:5000/create-order", {
+      const response = await fetch("https://mkfeez.mimansakids.com/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount }),
@@ -103,7 +103,7 @@ console.log("Contact being sent to Razorpay:", contact); // <--- ADD THIS LINE
         handler: async function (response) {
   // Update payment status in backend
   console.log('Razorpay handler called', response);
-  await fetch('http://localhost:5000/update-payment-status', {
+  await fetch('https://mkfeez.mimansakids.com/update-payment-status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

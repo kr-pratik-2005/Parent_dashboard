@@ -77,7 +77,7 @@ const MobileProfileUI = () => {
       const user = auth.currentUser;
       if (user?.phoneNumber) {
         try {
-          const response = await fetch('http://localhost:5000/get_parent_name', {
+          const response = await fetch('https://mkfeez.mimansakids.com/get_parent_name', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phoneNumber: user.phoneNumber })

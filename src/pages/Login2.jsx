@@ -42,7 +42,7 @@ export default function Login2() {
     localStorage.setItem('parentMobile', cleanMobile);
 
     // 🔥 NEW: Fetch students linked to this parent
-    const res = await fetch(`http://localhost:5000/get-students-by-contact/${cleanMobile}`);
+    const res = await fetch(`https://mkfeez.mimansakids.com/get-students-by-contact/${cleanMobile}`);
     const students = await res.json();
 
     if (Array.isArray(students) && students.length > 0) {

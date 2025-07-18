@@ -49,7 +49,7 @@ const Reports = () => {
       if (phone.startsWith("+91")) phone = phone.slice(3);
       else if (phone.startsWith("+")) phone = phone.slice(1);
 
-      const res = await fetch(`http://localhost:5000/get-students-by-contact/${phone}`);
+      const res = await fetch(`https://mkfeez.mimansakids.com/get-students-by-contact/${phone}`);
       const data = await res.json();
       setStudents(data);
       // Optionally auto-select first student if only one

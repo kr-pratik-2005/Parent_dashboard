@@ -26,7 +26,7 @@ const ParentProfile = () => {
       else if (phone.startsWith("+")) phone = phone.slice(1);
 
       try {
-        const res = await fetch(`http://localhost:5000/get-parent-profile/${phone}`);
+        const res = await fetch(`https://mkfeez.mimansakids.com/get-parent-profile/${phone}`);
         const data = await res.json();
         setProfile({
           fatherName: data.fatherName || "",
@@ -57,7 +57,7 @@ const ParentProfile = () => {
   else if (phone.startsWith("+")) phone = phone.slice(1);
 
   try {
-    await fetch(`http://localhost:5000/update-parent-profile/${phone}`, {
+    await fetch(`https://mkfeez.mimansakids.com/update-parent-profile/${phone}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(profile),

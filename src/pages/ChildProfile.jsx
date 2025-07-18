@@ -28,7 +28,7 @@ const ChildProfile = () => {
       else if (phone.startsWith("+")) phone = phone.slice(1);
 
       try {
-        const res = await fetch(`http://localhost:5000/get-students-by-contact/${phone}`);
+        const res = await fetch(`https://mkfeez.mimansakids.com/get-students-by-contact/${phone}`);
         const data = await res.json();
         setStudents(data);
         // If only one child, auto-select
@@ -43,7 +43,7 @@ const ChildProfile = () => {
     const fetchChild = async () => {
       if (!selectedStudentId) return;
       try {
-        const res = await fetch(`http://localhost:5000/get-child-profile/${selectedStudentId}`);
+        const res = await fetch(`https://mkfeez.mimansakids.com/get-child-profile/${selectedStudentId}`);
         const data = await res.json();
         setProfile({
           profileImage: data.profileImage || "",
@@ -65,7 +65,7 @@ const ChildProfile = () => {
  const handleSave = async () => {
   if (!selectedStudentId) return;
   try {
-    await fetch(`http://localhost:5000/update-child-profile/${selectedStudentId}`, {
+    await fetch(`https://mkfeez.mimansakids.com/update-child-profile/${selectedStudentId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(profile),
