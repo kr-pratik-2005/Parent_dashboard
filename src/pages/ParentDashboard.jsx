@@ -56,7 +56,7 @@ const ParentDashboard = () => {
     }
     try {
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'https://mkfeez.mimansakids.com/'}/get-fees-by-student/${selectedStudent.student_id}?contact=${selectedStudent.contact}`
+        `${process.env.REACT_APP_API_URL || 'https://mkfeez.mimansakids.com'}/get-fees-by-student/${selectedStudent.student_id}?contact=${selectedStudent.contact}`
       );
       if (response.ok) {
         const data = await response.json();
