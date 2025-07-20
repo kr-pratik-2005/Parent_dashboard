@@ -26,7 +26,12 @@ const detailsStyle = { background: "#f8f8f8", borderRadius: 7, padding: 10, marg
 const filterBtnStyle = { padding: "8px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" };
 const searchInputStyle = { flex: 1, padding: 8, borderRadius: 8, border: "1px solid #ddd" };
 
+
 export default function FeesPayment() {
+  const [showHistory, setShowHistory] = useState(false);
+const [paidInvoices, setPaidInvoices] = useState([]);
+const [historyLoading, setHistoryLoading] = useState(false);
+const [historyError, setHistoryError] = useState('');
   const navigate = useNavigate();
   const [openInvoice, setOpenInvoice] = useState(null);
   const [invoices, setInvoices] = useState([]);
@@ -44,6 +49,31 @@ export default function FeesPayment() {
       if (stuArr.length > 0) setSelectedStudent(stuArr[0]);
     }
   }, []);
+
+  const fetchPaidInvoices = async () => {
+  if (!selectedStudent) return;
+  setHistoryLoading(true);
+  setHistoryError('');
+  try {
+    const q = query(
+      collection(db, "fees"),
+      where("contact", "==", selectedStudent.contact),
+      where("paid", "==", true)
+    );
+    const qs = await getDocs(q);
+    const result = [];
+    qs.forEach(doc => {
+      const data = doc.data();
+      result.push(data);
+    });
+    setPaidInvoices(result);
+    setShowHistory(true);
+  } catch (err) {
+    setHistoryError(err.message);
+  } finally {
+    setHistoryLoading(false);
+  }
+};
 
   // Fetch pending invoices from Firestore for the selected student
   useEffect(() => {
@@ -118,6 +148,24 @@ export default function FeesPayment() {
           <Bell size={22} color="#666" />
         </span>
       </div>
+      <div style={{ textAlign: 'right', marginBottom: 18 }}>
+  <button
+    style={{
+      background: '#007bff',
+      color: '#fff',
+      border: 'none',
+      padding: '9px 20px',
+      borderRadius: 7,
+      cursor: 'pointer',
+      fontWeight: 600,
+      fontSize: 15,
+      boxShadow: "0 1px 4px #0002",
+    }}
+    onClick={fetchPaidInvoices}
+  >
+    View Payment History
+  </button>
+</div>
 
       {/* Student selector */}
       {students.length > 1 && (
@@ -137,6 +185,7 @@ export default function FeesPayment() {
           </select>
           <button style={filterBtnStyle}>☰</button>
         </div>
+        
       )}
 
       {/* Show selected student name */}
@@ -156,7 +205,9 @@ export default function FeesPayment() {
             </span>
           </span>
         </div>
+        
       </div>
+
 
       {/* Pending Invoices */}
       {pending.length > 0 ? pending.map(inv => (
@@ -200,6 +251,74 @@ export default function FeesPayment() {
       )) : (
         <div style={{ textAlign: "center", padding: 20 }}>No pending payments found</div>
       )}
+      {/* Payment History Modal/Section */}
+{showHistory && (
+  <div style={{
+    position: "fixed",
+    left: 0, top: 0, right: 0, bottom: 0,
+    background: "#0006",
+    display: "flex",
+    zIndex: 99,
+    alignItems: "center",
+    justifyContent: "center",
+  }}>
+    <div style={{
+      background: "#fff",
+      borderRadius: 12,
+      padding: 24,
+      minWidth: 320,
+      maxWidth: "90vw",
+      minHeight: 180,
+      maxHeight: "80vh",
+      overflowY: "auto",
+      boxShadow: "0 8px 24px #0003"
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 19 }}>Paid Payments</div>
+        <button
+          onClick={() => setShowHistory(false)}
+          style={{ fontSize: 22, background: "none", border: "none", cursor: "pointer", color: "#666" }}
+        >✕</button>
+      </div>
+      {historyLoading
+        ? <div style={{ textAlign: "center" }}><Loader className="animate-spin" /><br />Loading...</div>
+        : historyError
+        ? <div style={{ color: "red", textAlign: "center" }}>{historyError}</div>
+        : paidInvoices.length > 0
+        ? (
+            <div>
+              {paidInvoices
+                .sort((a, b) => (b.payment_date?.seconds || 0) - (a.payment_date?.seconds || 0))
+                .map(inv => (
+                <div key={inv.invoice_number} style={{
+                  background: "#f8f8f8",
+                  borderRadius: 8,
+                  padding: "14px 12px",
+                  marginBottom: 12,
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span><b>{inv.month}</b></span>
+                    <span style={{ color: "#27ae60" }}>₹ {inv.fee}</span>
+                  </div>
+                  <div style={{ fontSize: 14, color: "#777", marginTop: 4 }}>
+                    Paid on:{" "}
+                    {inv.payment_date
+                      ? (typeof inv.payment_date === 'string'
+                          ? inv.payment_date
+                          : (new Date(inv.payment_date.seconds * 1000)).toLocaleString('en-IN'))
+                      : "Unknown"}
+                  </div>
+                  <div style={{ fontSize: 13, color: "#aaa" }}>Invoice: {inv.invoice_number}</div>
+                </div>
+              ))}
+            </div>
+          )
+        : <div style={{ color: "#888", textAlign: "center" }}>No payment history found.</div>
+      }
+    </div>
+  </div>
+)}
+
 
       <BottomNav />
     </div>
