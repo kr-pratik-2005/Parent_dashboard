@@ -56,7 +56,7 @@ const ParentDashboard = () => {
     }
     try {
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL || 'https://mkfeez.mimansakids.com'}/get-fees-by-student/${selectedStudent.student_id}?contact=${selectedStudent.contact}`
+        `https://mkfeez.mimansakids.com/get-fees-by-student/${selectedStudent.student_id}?contact=${selectedStudent.contact}`
       );
       if (response.ok) {
         const data = await response.json();
@@ -74,7 +74,20 @@ const ParentDashboard = () => {
       setLoading(false);
     }
   };
+  
   fetchUnpaidMonths();
+  
+  // Add focus listener to refresh data when user returns to the page
+  const handleFocus = () => {
+    console.log('Page focused, refreshing unpaid months data');
+    fetchUnpaidMonths();
+  };
+  
+  window.addEventListener('focus', handleFocus);
+  
+  return () => {
+    window.removeEventListener('focus', handleFocus);
+  };
 }, [selectedStudent]);
 
 
@@ -130,6 +143,40 @@ const ParentDashboard = () => {
     }
   };
 
+  // Handle manual refresh
+  const handleRefresh = () => {
+    setLoading(true);
+    console.log('Manual refresh triggered');
+    // The useEffect will automatically refetch data when loading changes
+  };
+
+  // Add a function to check payment status
+  const checkPaymentStatus = async () => {
+    if (!selectedStudent) return;
+    
+    try {
+      console.log('Checking payment status for student:', selectedStudent.student_id);
+      const response = await fetch(
+        `https://mkfeez.mimansakids.com/get-fees-by-student/${selectedStudent.student_id}?contact=${selectedStudent.contact}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Current fees data:', data);
+        const pendingMonths = data
+          .filter(inv => inv.paid === false)
+          .map(inv => inv.month);
+        setUnpaidMonths(pendingMonths);
+        console.log('Updated unpaid months:', pendingMonths);
+      } else {
+        console.error('Failed to fetch pending invoices');
+      }
+    } catch (error) {
+      console.error('Error checking payment status:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <style>{`
@@ -171,6 +218,37 @@ const ParentDashboard = () => {
             <span style={{ color: '#333', fontWeight: 500, fontSize: 16 }}>
               Hi {parentName}, Welcome!
             </span>
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: 20,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.5 : 1,
+                marginLeft: 'auto'
+              }}
+              title="Refresh payment status"
+            >
+              🔄
+            </button>
+            <button
+              onClick={checkPaymentStatus}
+              disabled={loading}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: 16,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.5 : 1,
+                marginLeft: 8,
+                color: '#007bff'
+              }}
+              title="Debug payment status"
+            >
+              🐛
+            </button>
           </div>
           <h2 style={{
             color: '#333',

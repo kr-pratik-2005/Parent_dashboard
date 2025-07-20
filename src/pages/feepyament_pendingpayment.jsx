@@ -103,24 +103,51 @@ console.log("Contact being sent to Razorpay:", contact); // <--- ADD THIS LINE
         handler: async function (response) {
   // Update payment status in backend
   console.log('Razorpay handler called', response);
-  await fetch('https://mkfeez.mimansakids.com/update-payment-status', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  console.log('Invoice number:', invoiceNumber);
+  console.log('Payment ID:', response.razorpay_payment_id);
+  
+  try {
+    const updatePayload = {
       invoice_number: invoiceNumber,
       payment_id: response.razorpay_payment_id
-    })
-  });
-  
-  // Navigate to success page with payment data
-  navigate('/payment-success', {
-    state: {
-      amount: amount,
-      paymentId: response.razorpay_payment_id,
-      orderId: response.razorpay_order_id,
-      invoiceNumber: invoiceNumber
+    };
+    
+    console.log('Sending update payload:', updatePayload);
+    
+    const updateResponse = await fetch('https://mkfeez.mimansakids.com/update-payment-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatePayload)
+    });
+    
+    console.log('Update response status:', updateResponse.status);
+    console.log('Update response headers:', updateResponse.headers);
+    
+    const updateResult = await updateResponse.json();
+    console.log('Update result:', updateResult);
+    
+    if (!updateResponse.ok || !updateResult.success) {
+      console.error('Payment status update failed:', updateResult);
+      alert('Payment successful but status update failed. Please contact support.');
+      return;
     }
-  });
+    
+    console.log('Payment status updated successfully');
+    
+    // Navigate to success page with payment data
+    navigate('/payment-success', {
+      state: {
+        amount: amount,
+        paymentId: response.razorpay_payment_id,
+        orderId: response.razorpay_order_id,
+        invoiceNumber: invoiceNumber
+      }
+    });
+  } catch (error) {
+    console.error('Error updating payment status:', error);
+    console.error('Error details:', error.message);
+    alert('Payment successful but status update failed. Please contact support.');
+  }
 },
 
         modal: {
