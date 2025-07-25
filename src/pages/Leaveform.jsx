@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Bell } from "lucide-react";
 import { getAuth } from "firebase/auth";
-
+import { useNavigate } from 'react-router-dom';
 function RequestSubmittedModal({ open, onClose }) {
   if (!open) return null;
+  
   return (
     <>
       <style>{`
@@ -140,7 +141,7 @@ export default function Leaveform() {
 
   const [futureFrom, setFutureFrom] = useState(today);
   const [futureTo, setFutureTo] = useState(today);
-
+const navigate = useNavigate();
   const [futureReason, setFutureReason] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownValue, setDropdownValue] = useState("");
@@ -342,7 +343,14 @@ export default function Leaveform() {
       <form className="leave-req-container" style={styles.container} onSubmit={handleSubmit}>
         {/* Header */}
         <div style={styles.header}>
-          <button style={styles.backBtn} aria-label="Back" type="button">{'‹'}</button>
+<button 
+  style={styles.backBtn} 
+  aria-label="Back" 
+  type="button"
+  onClick={() => navigate('/parent-dashboard')}
+>
+  {'‹'}
+</button>
           <span style={styles.headerTitle}>Leave request</span>
           <span
             style={headerIconStyle}

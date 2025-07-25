@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useAuth } from '../contexts/AuthContext'; // Add this import
 
 // ✅ Import the already-initialized Firestore DB
-import { db } from '../firebase/firebase'; // If firebase.js is located in src/firebase/
+import { db } from '../firebase/firebase';
 
 import {
   doc,
@@ -15,10 +16,7 @@ import {
   where,
 } from "firebase/firestore";
 
-// make sure this path is correct
-
-
-// 🧮 Helper functions
+// 🧮 Helper functions (keep existing ones)
 const formatDateToYYYYMMDD = (date) => {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -51,12 +49,13 @@ const formatDateDDMMYYYY = (date) => {
   return date.toLocaleDateString("en-GB");
 };
 
-export default function RithikReport() {
+export default function ParentReport() { // Renamed from RithikReport
   const navigate = useNavigate();
   const { studentId } = useParams();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const dateParam = queryParams.get("date");
+  const { parentPhone } = useAuth(); // Get parent's phone number
 
   const getDefaultDate = () => {
     if (dateParam) return parseLocalDate(dateParam);
@@ -68,9 +67,91 @@ export default function RithikReport() {
   const [days, setDays] = useState(generateDaysArray(getDefaultDate()));
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // New states for student management
+  const [students, setStudents] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const [studentsLoading, setStudentsLoading] = useState(true);
 
-  // ✅ FIREBASE-BASED DATA FETCH
+  // ✅ Fetch students associated with parent's phone number
   useEffect(() => {
+    const fetchStudents = async () => {
+      if (!parentPhone) return;
+      
+      setStudentsLoading(true);
+      try {
+        // Query students where contact, father_contact, or mother_contact matches parentPhone
+        const studentsQuery = query(
+          collection(db, "students"),
+          where("contact", "==", parentPhone)
+        );
+        
+        const fatherQuery = query(
+          collection(db, "students"),
+          where("father_contact", "==", parentPhone)
+        );
+        
+        const motherQuery = query(
+          collection(db, "students"),
+          where("mother_contact", "==", parentPhone)
+        );
+
+        // Execute all queries
+        const [contactSnap, fatherSnap, motherSnap] = await Promise.all([
+          getDocs(studentsQuery),
+          getDocs(fatherQuery),
+          getDocs(motherQuery)
+        ]);
+
+        // Combine results and remove duplicates
+        const allStudents = [];
+        const studentIds = new Set();
+
+        [contactSnap, fatherSnap, motherSnap].forEach(snapshot => {
+          snapshot.docs.forEach(doc => {
+            const studentData = { id: doc.id, ...doc.data() };
+            if (!studentIds.has(studentData.student_id)) {
+              allStudents.push(studentData);
+              studentIds.add(studentData.student_id);
+            }
+          });
+        });
+
+        setStudents(allStudents);
+
+        // If studentId is provided in URL, find and select that student
+        if (studentId) {
+          const student = allStudents.find(s => s.student_id === studentId);
+          if (student) {
+            setSelectedStudent(student);
+          }
+        } else if (allStudents.length === 1) {
+          // If only one student, auto-select
+          setSelectedStudent(allStudents[0]);
+          navigate(`/daily-report/${allStudents[0].student_id}${location.search}`, { replace: true });
+        } else if (allStudents.length > 1) {
+          // If multiple students, show dropdown
+          setShowStudentDropdown(true);
+        }
+
+      } catch (error) {
+        console.error("Error fetching students:", error);
+      } finally {
+        setStudentsLoading(false);
+      }
+    };
+
+    fetchStudents();
+  }, [parentPhone, studentId, navigate, location.search]);
+
+  // ✅ FIREBASE-BASED DATA FETCH (keep existing logic but use selectedStudent)
+  useEffect(() => {
+    if (!selectedStudent) {
+      setLoading(false);
+      return;
+    }
+
     const fetchReport = async () => {
       setLoading(true);
       const formatted = formatDateToYYYYMMDD(selectedDate);
@@ -86,7 +167,7 @@ export default function RithikReport() {
         // 🟠 Check attendance
         const attQuery = query(
           collection(db, "attendance_records"),
-          where("student_id", "==", studentId),
+          where("student_id", "==", selectedStudent.student_id),
           where("date", "==", formatted)
         );
         const attSnap = await getDocs(attQuery);
@@ -107,7 +188,7 @@ export default function RithikReport() {
         // ✅ Fetch daily report
         const drQuery = query(
           collection(db, "daily_reports"),
-          where("student_id", "==", studentId),
+          where("student_id", "==", selectedStudent.student_id),
           where("date", "==", formatted)
         );
         const drSnap = await getDocs(drQuery);
@@ -126,18 +207,20 @@ export default function RithikReport() {
     };
 
     fetchReport();
-  }, [selectedDate, studentId]);
+  }, [selectedDate, selectedStudent]);
 
-  // 📅 Update when date param changes
-  useEffect(() => {
-    const updatedDate = dateParam ? parseLocalDate(dateParam) : getDefaultDate();
-    setSelectedDate(updatedDate);
-    setDays(generateDaysArray(updatedDate));
-  }, [dateParam]);
+  // Handle student selection
+  const handleStudentSelect = (student) => {
+    setSelectedStudent(student);
+    setShowStudentDropdown(false);
+    navigate(`/daily-report/${student.student_id}${location.search}`, { replace: true });
+  };
 
+  // Rest of your existing handlers (keep them the same)
   const updateURLWithDate = (newDate) => {
+    if (!selectedStudent) return;
     const formatted = formatDateToYYYYMMDD(newDate);
-    navigate(`/daily-report/${studentId}?date=${formatted}`, { replace: true });
+    navigate(`/daily-report/${selectedStudent.student_id}?date=${formatted}`, { replace: true });
   };
 
   const handleDateChange = (date) => {
@@ -159,7 +242,105 @@ export default function RithikReport() {
     navigate("/parent-dashboard");
   };
 
-  // 🧾 Report UI
+  // Show loading screen while fetching students
+  if (studentsLoading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5'
+      }}>
+        <div style={{ fontSize: 18, color: '#666' }}>Loading students...</div>
+      </div>
+    );
+  }
+
+  // Show student selection if multiple students
+  if (showStudentDropdown && students.length > 1) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        backgroundColor: '#f5f5f5',
+        padding: '20px'
+      }}>
+        <div style={{
+          maxWidth: '400px',
+          margin: '0 auto',
+          backgroundColor: '#fff',
+          borderRadius: '20px',
+          padding: '30px',
+          textAlign: 'center'
+        }}>
+          <h2 style={{ marginBottom: '30px', color: '#333' }}>Select Your Child</h2>
+          {students.map((student) => (
+            <div
+              key={student.student_id}
+              onClick={() => handleStudentSelect(student)}
+              style={{
+                padding: '15px',
+                margin: '10px 0',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                border: '1px solid #e9ecef',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = '#e9ecef';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = '#f8f9fa';
+              }}
+            >
+              <div style={{ fontSize: '16px', fontWeight: '500', color: '#333' }}>
+                {student.name}
+              </div>
+              <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                Grade: {student.grade} | ID: {student.student_id}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Show message if no students found
+  if (students.length === 0) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 18, color: '#666', marginBottom: '20px' }}>
+            No students found for this phone number
+          </div>
+          <button
+            onClick={handleBackClick}
+            style={{
+              backgroundColor: '#3b2f2f',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '20px',
+              padding: '12px 24px',
+              fontSize: '15px',
+              cursor: 'pointer'
+            }}
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Your existing report content logic (keep the same)
   const status = report?.status;
   const { time_in = "--", time_out = "--" } = report || {};
 
@@ -172,38 +353,35 @@ export default function RithikReport() {
       </div>
     );
   } else if (status === "present") {
-  reportContent = (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
-        <button
-          onClick={() =>
-            navigate(`/daily-report/${studentId}/details?date=${formatDateToYYYYMMDD(selectedDate)}`)
-          }
-          style={{
-            backgroundColor: "#3b2f2f",
-            color: "#fff",
-            border: "none",
-            borderRadius: "20px",
-            padding: "10px 24px",
-            fontSize: 15,
-            cursor: "pointer"
-          }}
-        >
-          View Detailed Report
-        </button>
-      </div>
-
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 18
-      }}>
-        
-      </div>
-    </>
-  );
-}  else if (status === "leave") {
+    reportContent = (
+      <>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+          <button
+            onClick={() =>
+              navigate(`/daily-report/${selectedStudent.student_id}/details?date=${formatDateToYYYYMMDD(selectedDate)}`)
+            }
+            style={{
+              backgroundColor: "#3b2f2f",
+              color: "#fff",
+              border: "none",
+              borderRadius: "20px",
+              padding: "10px 24px",
+              fontSize: 15,
+              cursor: "pointer"
+            }}
+          >
+            View Detailed Report
+          </button>
+        </div>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginTop: 18
+        }}></div>
+      </>
+    );
+  } else if (status === "leave") {
     reportContent = (
       <div style={{ textAlign: 'center', marginTop: 60 }}>
         <div style={{ fontSize: 18, color: '#444', marginBottom: 24 }}>
@@ -290,7 +468,7 @@ export default function RithikReport() {
       boxSizing: 'border-box',
       overflowX: 'hidden'
     }}>
-      {/* Responsive Styles */}
+      {/* Keep your existing responsive styles */}
       <style>{`
         @media (max-width: 600px) {
           .rr-container { max-width: 100vw; padding: 0 0 40px 0; }
@@ -365,104 +543,168 @@ export default function RithikReport() {
               margin: 0,
               fontSize: 18
             }}>
-              Rithik's Report
+              {selectedStudent ? `${selectedStudent.name}'s Report` : "Student Report"}
             </h1>
+            {/* Add dropdown for multiple students */}
+            {students.length > 1 && selectedStudent && (
+              <div style={{ position: 'relative', marginTop: '8px' }}>
+                <button
+                  onClick={() => setShowStudentDropdown(!showStudentDropdown)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#666',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  Switch Child ▼
+                </button>
+                {showStudentDropdown && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    backgroundColor: '#fff',
+                    border: '1px solid #ddd',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                    zIndex: 100,
+                    minWidth: '200px'
+                  }}>
+                    {students.map((student) => (
+                      <div
+                        key={student.student_id}
+                        onClick={() => handleStudentSelect(student)}
+                        style={{
+                          padding: '12px 16px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #eee',
+                          fontSize: '14px',
+                          backgroundColor: student.student_id === selectedStudent.student_id ? '#f0f0f0' : '#fff'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (student.student_id !== selectedStudent.student_id) {
+                            e.target.style.backgroundColor = '#f8f9fa';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (student.student_id !== selectedStudent.student_id) {
+                            e.target.style.backgroundColor = '#fff';
+                          }
+                        }}
+                      >
+                        {student.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Date Badge */}
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          width: "100%",
-          margin: '20px 0'
-        }}>
-          <div
-            className="rr-badge"
-            style={{
-              backgroundColor: '#fff',
-              padding: '8px 16px',
-              borderRadius: '20px',
-              fontSize: '14px',
-              color: '#666',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
-              cursor: 'pointer'
-            }}
-            onClick={() => setShowDatePicker(true)}
-            role="button"
-            tabIndex={0}
-          >
-            📅 {formatDateDDMMYYYY(selectedDate)}
-          </div>
-          {showDatePicker && (
+        {/* Rest of your existing UI - Date Badge, Date Navigation, Report Card */}
+        {selectedStudent && (
+          <>
+            {/* Date Badge */}
             <div style={{
-              position: 'absolute',
-              top: 110,
-              zIndex: 100
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              width: "100%",
+              margin: '20px 0'
             }}>
-              <DatePicker
-                selected={selectedDate}
-                onChange={handleDateChange}
-                inline
-                showMonthDropdown
-                showYearDropdown
-                dropdownMode="select"
-              />
+              <div
+                className="rr-badge"
+                style={{
+                  backgroundColor: '#fff',
+                  padding: '8px 16px',
+                  borderRadius: '20px',
+                  fontSize: '14px',
+                  color: '#666',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                  cursor: 'pointer'
+                }}
+                onClick={() => setShowDatePicker(true)}
+                role="button"
+                tabIndex={0}
+              >
+                📅 {formatDateDDMMYYYY(selectedDate)}
+              </div>
+              {showDatePicker && (
+                <div style={{
+                  position: 'absolute',
+                  top: 110,
+                  zIndex: 100
+                }}>
+                  <DatePicker
+                    selected={selectedDate}
+                    onChange={handleDateChange}
+                    inline
+                    showMonthDropdown
+                    showYearDropdown
+                    dropdownMode="select"
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Date Navigation */}
-        <div className="rr-date-nav" style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: '24px',
-          gap: 8
-        }}>
-          {days.map((day, index) => (
-            <div
-              key={index}
-              className={day.active ? "rr-day-btn-active" : "rr-day-btn"}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                padding: '12px 8px',
-                borderRadius: '12px',
-                backgroundColor: day.active ? '#000' : '#fff',
-                color: day.active ? '#fff' : '#333',
-                fontSize: '14px',
-                fontWeight: '500',
-                minWidth: '50px',
-                cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.09)'
-              }}
-              onClick={() => handleDayClick(index)}
-            >
-              <span style={{
-                fontSize: '16px',
-                fontWeight: '600',
-                marginBottom: '2px'
-              }}>{day.num}</span>
-              <span style={{
-                fontSize: '12px',
-                opacity: 0.8
-              }}>{day.day}</span>
+            {/* Date Navigation */}
+            <div className="rr-date-nav" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '24px',
+              gap: 8
+            }}>
+              {days.map((day, index) => (
+                <div
+                  key={index}
+                  className={day.active ? "rr-day-btn-active" : "rr-day-btn"}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    padding: '12px 8px',
+                    borderRadius: '12px',
+                    backgroundColor: day.active ? '#000' : '#fff',
+                    color: day.active ? '#fff' : '#333',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    minWidth: '50px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.09)'
+                  }}
+                  onClick={() => handleDayClick(index)}
+                >
+                  <span style={{
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    marginBottom: '2px'
+                  }}>{day.num}</span>
+                  <span style={{
+                    fontSize: '12px',
+                    opacity: 0.8
+                  }}>{day.day}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {/* Report Card */}
-        <div className="rr-report-card" style={{
-          backgroundColor: '#e5e7eb',
-          borderRadius: '20px',
-          padding: '30px 24px',
-          minHeight: '320px',
-          position: 'relative'
-        }}>
-          {reportContent}
-        </div>
+            {/* Report Card */}
+            <div className="rr-report-card" style={{
+              backgroundColor: '#e5e7eb',
+              borderRadius: '20px',
+              padding: '30px 24px',
+              minHeight: '320px',
+              position: 'relative'
+            }}>
+              {reportContent}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
